@@ -48,3 +48,24 @@ cards:
       icon:
         - color: "#ff4a4a"
         - width: 22px
+
+  - type: custom:button-card
+    name: "🏆 Catégories"
+    icon: mdi:podium
+    tap_action:
+      action: navigate
+      navigation_path: /lovelace/motogp-categories
+    styles:
+      card:
+        - background: rgba(20, 27, 38, 0.6)
+        - backdrop-filter: blur(10px)
+        - border-radius: 12px
+        - border: "1px solid rgba(255,255,255,0.1)"
+        - padding: "10px 0"
+      name:
+        - color: white
+        - font-size: 13px
+        - font-weight: "700"
+      icon:
+        - color: "#ffd700"
+        - width: 22px

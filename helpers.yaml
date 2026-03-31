@@ -1,0 +1,43 @@
+# -------------------------------------------------------------------------------------------
+# MotoGP — Helpers Home Assistant
+#
+# INSTALLATION dans configuration.yaml :
+#   input_select: !include MotoGP/helpers.yaml
+#   input_text:   !include MotoGP/helpers.yaml
+#
+# OU (si vous avez déjà des sections input_select / input_text) :
+#   Fusionnez le contenu dans vos sections existantes.
+#
+# Redémarrage HA requis après modification.
+# -------------------------------------------------------------------------------------------
+
+# --- Sélection de la saison pour l'historique ---
+input_select:
+  motogp_history_season:
+    name: "MotoGP - Saison historique"
+    options:
+      - "2025"
+      - "2024"
+      - "2023"
+      - "2022"
+      - "2021"
+      - "2020"
+      - "2019"
+    initial: "2024"
+    icon: mdi:calendar-search
+
+  motogp_history_category:
+    name: "MotoGP - Catégorie historique"
+    options:
+      - "MotoGP"
+      - "Moto2"
+      - "Moto3"
+    initial: "MotoGP"
+    icon: mdi:racing-helmet
+
+# --- Déclencheur interne de re-rendu (ne pas supprimer) ---
+input_text:
+  motogp_history_ts:
+    name: "MotoGP - History refresh timestamp"
+    initial: "0"
+    icon: mdi:refresh

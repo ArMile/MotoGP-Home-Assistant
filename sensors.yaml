@@ -78,3 +78,47 @@
         {%- else -%}
           unavailable
         {%- endif -%}
+
+# -------------------------------------------------------------------------------------------
+# MOTO2
+# -------------------------------------------------------------------------------------------
+
+# === MOTO2 — CLASSEMENT PILOTES (toutes les heures) ===
+- resource: "https://site.web.api.espn.com/apis/v2/sports/racing/moto2/standings"
+  scan_interval: 3600
+  sensor:
+    - name: moto2_rider_standings
+      json_attributes:
+        - standings
+      value_template: "OK"
+
+# === MOTO2 — CLASSEMENT CONSTRUCTEURS (toutes les heures) ===
+- resource: "https://site.web.api.espn.com/apis/v2/sports/racing/moto2/standings?group=constructor"
+  scan_interval: 3600
+  sensor:
+    - name: moto2_constructor_standings
+      json_attributes:
+        - standings
+      value_template: "OK"
+
+# -------------------------------------------------------------------------------------------
+# MOTO3
+# -------------------------------------------------------------------------------------------
+
+# === MOTO3 — CLASSEMENT PILOTES (toutes les heures) ===
+- resource: "https://site.web.api.espn.com/apis/v2/sports/racing/moto3/standings"
+  scan_interval: 3600
+  sensor:
+    - name: moto3_rider_standings
+      json_attributes:
+        - standings
+      value_template: "OK"
+
+# === MOTO3 — CLASSEMENT CONSTRUCTEURS (toutes les heures) ===
+- resource: "https://site.web.api.espn.com/apis/v2/sports/racing/moto3/standings?group=constructor"
+  scan_interval: 3600
+  sensor:
+    - name: moto3_constructor_standings
+      json_attributes:
+        - standings
+      value_template: "OK"

@@ -1,10 +1,10 @@
 # -------------------------------------------------------------------------------------------
 # ID CARD / COMPONENT DOCUMENTATION
-# Integration(s) : REST (sensor.motogp_constructor_standings)
+# Integration(s) : REST (sensor.moto3_constructor_standings)
 # Required Custom Cards : custom:button-card
 # Technical Dependencies (Full Transitive Chain) :
-# - Requires Internal Entity: sensor.motogp_constructor_standings
-# Description : Classement constructeurs MotoGP avec couleurs par marque
+# - Requires Internal Entity: sensor.moto3_constructor_standings
+# Description : Classement constructeurs Moto3 avec couleurs par marque
 # -------------------------------------------------------------------------------------------
 
 type: custom:button-card
@@ -32,20 +32,20 @@ styles:
 custom_fields:
   content: |
     [[[
-      const s = states['sensor.motogp_constructor_standings'];
+      const s = states['sensor.moto3_constructor_standings'];
       if (!s || !s.attributes.standings) {
         return `
           <div style="padding:16px;text-align:center;color:rgba(255,255,255,0.4);font-family:Roboto,sans-serif;">
-            <div style="font-size:11px;">Chargement constructeurs...</div>
+            <div style="font-size:11px;">Chargement constructeurs Moto3...</div>
           </div>`;
       }
 
       const brandColors = {
-        'Ducati':   { primary: '#cc0000', badge: '🔴' },
-        'Honda':    { primary: '#cc0000', badge: '🔴' },
-        'Yamaha':   { primary: '#003087', badge: '🔵' },
-        'KTM':      { primary: '#ff6b00', badge: '🟠' },
-        'Aprilia':  { primary: '#002060', badge: '🔵' },
+        'Honda':     { primary: '#cc0000', badge: '🔴' },
+        'KTM':       { primary: '#ff6b00', badge: '🟠' },
+        'CFMOTO':    { primary: '#00a651', badge: '🟢' },
+        'Husqvarna': { primary: '#ff6b00', badge: '🟠' },
+        'GasGas':    { primary: '#ff6b00', badge: '🟠' },
       };
 
       const getBrand = (name) => {
@@ -85,7 +85,6 @@ custom_fields:
         else if (r === 2) rankColor = '#c0c0c0';
         else if (r === 3) rankColor = '#cd7f32';
 
-        // Points bar (relative to leader)
         const leaderPts = parseFloat(getStat(entries[0]?.stats, 'points')) || 1;
         const thisPts   = parseFloat(pts) || 0;
         const barWidth  = Math.round((thisPts / leaderPts) * 100);
@@ -120,12 +119,12 @@ custom_fields:
           <div style="padding:10px 16px 8px;border-bottom:1px solid rgba(255,255,255,0.08);
                       display:flex;align-items:center;gap:10px;">
             <div style="width:28px;height:28px;border-radius:50%;
-                        background:linear-gradient(135deg,#ff6600,#cc3300);
+                        background:linear-gradient(135deg,#00a651,#007a3d);
                         display:flex;align-items:center;justify-content:center;font-size:14px;">🏭</div>
             <div>
               <div style="font-size:13px;font-weight:800;color:white;
                           text-transform:uppercase;letter-spacing:0.5px;">Constructeurs</div>
-              <div style="font-size:10px;color:rgba(255,255,255,0.4);">Championnat du Monde MotoGP</div>
+              <div style="font-size:10px;color:rgba(255,255,255,0.4);">Championnat du Monde Moto3</div>
             </div>
           </div>
           <table width="100%" style="border-collapse:collapse;text-align:left;color:white;font-family:Roboto,sans-serif;">
