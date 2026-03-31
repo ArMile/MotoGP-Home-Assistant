@@ -1,0 +1,199 @@
+# -------------------------------------------------------------------------------------------
+# ID CARD / COMPONENT DOCUMENTATION
+# Integration(s) : REST (sensor.motogp_scoreboard)
+# Required Custom Cards : custom:button-card
+# Technical Dependencies (Full Transitive Chain) :
+# - Requires Internal Entity: sensor.motogp_scoreboard
+# Description : Prochain Grand Prix avec horaires complets de toutes les sessions
+# -------------------------------------------------------------------------------------------
+
+type: custom:button-card
+show_name: false
+show_icon: false
+tap_action:
+  action: none
+styles:
+  card:
+    - background: rgba(20, 27, 38, 0.6)
+    - backdrop-filter: blur(10px)
+    - -webkit-backdrop-filter: blur(10px)
+    - border-radius: 20px
+    - border: 1px solid rgba(255,255,255,0.1)
+    - box-shadow: "0 4px 15px rgba(0,0,0,0.3)"
+    - padding: 0
+    - overflow: hidden
+  grid:
+    - grid-template-areas: '"content"'
+    - grid-template-columns: 100%
+  custom_fields:
+    content:
+      - pointer-events: auto
+custom_fields:
+  content: |
+    [[[
+      const s = states['sensor.motogp_scoreboard'];
+      if (!s || !s.attributes.events || !s.attributes.events.length) {
+        return `
+          <div style="padding:24px;text-align:center;color:rgba(255,255,255,0.4);font-family:Roboto,sans-serif;">
+            <div style="font-size:36px;margin-bottom:10px;">🏍️</div>
+            <div style="font-size:13px;">Chargement ESPN MotoGP...</div>
+          </div>`;
+      }
+
+      const allEvents = s.attributes.events;
+      const now = new Date();
+
+      // Trouver le prochain GP (en cours ou à venir)
+      let event = allEvents.find(e => {
+        const state = e.status?.type?.state;
+        return state === 'in' || state === 'pre';
+      });
+      if (!event) event = allEvents[allEvents.length - 1];
+
+      const venue   = event.venue || {};
+      const country = venue.address?.country || event.location?.name || '';
+      const city    = venue.address?.city || '';
+      const circuit = venue.fullName || venue.name || 'Circuit';
+      const gpName  = (event.name || 'Grand Prix').replace(/^\d{4}\s+/, '');
+
+      const flagMap = {
+        'Qatar':'🇶🇦','Thailand':'🇹🇭','Portugal':'🇵🇹','Spain':'🇪🇸',
+        'France':'🇫🇷','Italy':'🇮🇹','Germany':'🇩🇪','Netherlands':'🇳🇱',
+        'United Kingdom':'🇬🇧','Great Britain':'🇬🇧','Austria':'🇦🇹',
+        'United States':'🇺🇸','USA':'🇺🇸','Czech Republic':'🇨🇿',
+        'San Marino':'🇸🇲','India':'🇮🇳','Japan':'🇯🇵','Indonesia':'🇮🇩',
+        'Australia':'🇦🇺','Malaysia':'🇲🇾','Argentina':'🇦🇷',
+        'Mexico':'🇲🇽','Kazakhstan':'🇰🇿'
+      };
+      const flag = flagMap[country] || '🏁';
+
+      // Noms courts des sessions
+      const sessionShort = {
+        'Practice 1':'FP1','Practice 2':'FP2','Practice 3':'FP3','Practice 4':'FP4',
+        'Free Practice':'Practice','Qualifying 1':'Q1','Qualifying 2':'Q2',
+        'Qualifying':'Qualif.','Sprint':'Sprint','Sprint Race':'Sprint',
+        'Sprint Qualifying':'Sprint Q.','Tissot Sprint':'Sprint',
+        'Race':'COURSE','Warm Up':'Warm Up'
+      };
+      const sessionIcon = {
+        'Practice 1':'🔧','Practice 2':'🔧','Practice 3':'🔧','Practice 4':'🔧',
+        'Free Practice':'🔧','Qualifying 1':'⏱','Qualifying 2':'⏱',
+        'Qualifying':'⏱','Sprint':'💨','Sprint Race':'💨',
+        'Sprint Qualifying':'⏱','Tissot Sprint':'💨',
+        'Race':'🏁','Warm Up':'🌅'
+      };
+
+      const jours = ['Dim.','Lun.','Mar.','Mer.','Jeu.','Ven.','Sam.'];
+
+      const sessions = (event.competitions || []).map(comp => {
+        const d      = new Date(comp.date);
+        const isLive = comp.status?.type?.state === 'in';
+        const isDone = comp.status?.type?.completed === true;
+        const name   = comp.name || 'Session';
+        const short  = sessionShort[name] || name;
+        const icon   = sessionIcon[name] || '🏍️';
+        const day    = jours[d.getDay()];
+        const time   = d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+        const isRace = name === 'Race';
+
+        let dotColor  = isLive ? '#ff6600' : isDone ? '#3a4050' : isRace ? '#ff6600' : '#4fc3f7';
+        let textColor = isRace ? '#ff6600' : 'white';
+        let fw        = (isRace || isLive) ? '800' : '600';
+        let opacity   = isDone ? '0.35' : '1';
+        let rowBg     = isLive ? 'background:rgba(255,102,0,0.12);' : '';
+        let liveBadge = isLive
+          ? '<span style="background:#ff6600;color:white;font-size:8px;padding:2px 6px;border-radius:8px;font-weight:700;margin-left:6px;animation:pulseBadge 1.5s infinite;">LIVE</span>'
+          : '';
+        let doneCheck = isDone ? '<span style="color:#4caf50;font-size:10px;margin-left:4px;">✓</span>' : '';
+
+        return `
+          <div style="display:flex;align-items:center;justify-content:space-between;
+                      padding:7px 14px;border-bottom:1px solid rgba(255,255,255,0.05);
+                      opacity:${opacity};${rowBg}">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:7px;height:7px;border-radius:50%;background:${dotColor};
+                          flex-shrink:0;${isLive ? 'box-shadow:0 0 8px '+dotColor+';animation:pulseBadge 1.5s infinite;' : ''}"></div>
+              <span style="font-size:12px;color:rgba(255,255,255,0.45);width:18px;text-align:center;">${icon}</span>
+              <span style="font-size:13px;font-weight:${fw};color:${textColor};
+                           letter-spacing:${isRace ? '0.5px' : '0'};">${short}</span>
+              ${liveBadge}${doneCheck}
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span style="font-size:11px;color:rgba(255,255,255,0.35);">${day}</span>
+              <span style="font-size:13px;font-weight:700;
+                           color:${isLive ? '#ff6600' : 'rgba(255,255,255,0.85)'};">${time}</span>
+            </div>
+          </div>`;
+      }).join('');
+
+      const roundNum    = allEvents.indexOf(event) + 1;
+      const totalRounds = allEvents.length;
+
+      // Countdown jusqu'à la prochaine session non terminée
+      let countdownHTML = '';
+      const nextComp = (event.competitions || []).find(c =>
+        !c.status?.type?.completed && c.status?.type?.state !== 'in'
+      );
+      if (nextComp) {
+        const msLeft = new Date(nextComp.date) - now;
+        if (msLeft > 0 && msLeft < 86400000 * 7) {
+          const h = Math.floor(msLeft / 3600000);
+          const m = Math.floor((msLeft % 3600000) / 60000);
+          const nextName = sessionShort[nextComp.name] || nextComp.name;
+          countdownHTML = `
+            <div style="padding:8px 14px;border-top:1px solid rgba(255,255,255,0.06);
+                        display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1px;">
+                Prochain : ${nextName}
+              </span>
+              <span style="font-size:12px;font-weight:700;color:#4fc3f7;">
+                dans ${h}h${m.toString().padStart(2,'0')}
+              </span>
+            </div>`;
+        }
+      }
+
+      return `
+        <div style="font-family:Roboto,sans-serif;">
+          <div style="padding:14px 16px 12px;border-bottom:1px solid rgba(255,255,255,0.08);
+                      background:linear-gradient(135deg,rgba(255,102,0,0.15) 0%,transparent 60%);">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+              <div style="display:flex;align-items:center;gap:12px;">
+                <span style="font-size:34px;line-height:1;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5));">
+                  ${flag}
+                </span>
+                <div>
+                  <div style="font-size:14px;font-weight:800;color:white;
+                               text-transform:uppercase;letter-spacing:0.8px;line-height:1.2;">
+                    ${gpName}
+                  </div>
+                  <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:3px;">
+                    ${circuit}${city ? ' · ' + city : ''}
+                  </div>
+                </div>
+              </div>
+              <div style="text-align:right;flex-shrink:0;margin-left:8px;">
+                <div style="font-size:9px;color:rgba(255,255,255,0.3);text-transform:uppercase;
+                             letter-spacing:1px;">Manche</div>
+                <div style="font-size:26px;font-weight:900;color:#ff6600;line-height:1.1;
+                             text-shadow:0 0 18px rgba(255,102,0,0.6);">${roundNum}</div>
+                <div style="font-size:9px;color:rgba(255,255,255,0.25);">/${totalRounds}</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="padding:2px 0;">
+            <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;
+                        color:rgba(255,255,255,0.25);padding:8px 14px 3px;">Programme week-end</div>
+            ${sessions || '<div style="padding:14px;color:rgba(255,255,255,0.3);font-size:12px;">Sessions non disponibles</div>'}
+          </div>
+
+          ${countdownHTML}
+        </div>
+        <style>
+          @keyframes pulseBadge {
+            0%,100% { opacity:1; transform:scale(1); }
+            50%      { opacity:0.5; transform:scale(0.95); }
+          }
+        </style>`;
+    ]]]

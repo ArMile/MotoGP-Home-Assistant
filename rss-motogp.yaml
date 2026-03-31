@@ -1,0 +1,18 @@
+# -------------------------------------------------------------------------------------------
+# MotoGP - Flux RSS Actualités
+# Source : Google News (articles francophones)
+#
+# INSTALLATION dans configuration.yaml :
+#   sensor: !include MotoGP/rss-motogp.yaml
+#
+# Requiert : intégration REST (native HA)
+# API gratuite : rss2json.com (500 requêtes/jour en version gratuite)
+# -------------------------------------------------------------------------------------------
+
+- platform: rest
+  resource: "https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fnews.google.com%2Frss%2Fsearch%3Fq%3DMotoGP%26hl%3Dfr%26gl%3DFR%26ceid%3DFR%3Afr"
+  scan_interval: 3600
+  name: motogp_news
+  json_attributes:
+    - items
+  value_template: "OK"

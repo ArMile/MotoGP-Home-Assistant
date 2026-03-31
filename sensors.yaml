@@ -1,0 +1,80 @@
+# -------------------------------------------------------------------------------------------
+# MotoGP - REST Sensors Configuration
+# Source : ESPN API (public, sans clé)
+#
+# INSTALLATION dans configuration.yaml :
+#   rest: !include MotoGP/sensors.yaml
+#
+# Si vous avez déjà une section rest: existante, fusionnez le contenu.
+# Redémarrage HA requis après modification.
+# -------------------------------------------------------------------------------------------
+
+# === SCOREBOARD — Prochain GP / GP en cours (toutes les 15 min) ===
+- resource: "https://site.api.espn.com/apis/site/v2/sports/racing/motogp/scoreboard"
+  scan_interval: 900
+  sensor:
+    - name: motogp_scoreboard
+      json_attributes:
+        - events
+        - season
+        - week
+      value_template: >-
+        {%- if value_json.events is defined and value_json.events | length > 0 -%}
+          {{ value_json.events[0].status.type.name | default('STATUS_SCHEDULED') }}
+        {%- else -%}
+          unavailable
+        {%- endif -%}
+
+# === LIVE — Mise à jour toutes les 5 min (passer à 60s pendant les sessions) ===
+# Tip : Créer une automation pour baisser scan_interval à 60s le week-end GP
+- resource: "https://site.api.espn.com/apis/site/v2/sports/racing/motogp/scoreboard"
+  scan_interval: 300
+  sensor:
+    - name: motogp_live
+      json_attributes:
+        - events
+      value_template: >-
+        {%- if value_json.events is defined and value_json.events | length > 0 -%}
+          {%- set ev = value_json.events[0] -%}
+          {%- if ev.status.type.state == 'in' -%}
+            IN
+          {%- elif ev.status.type.state == 'pre' -%}
+            PRE
+          {%- else -%}
+            POST
+          {%- endif -%}
+        {%- else -%}
+          unavailable
+        {%- endif -%}
+
+# === CLASSEMENT PILOTES (toutes les heures) ===
+- resource: "https://site.web.api.espn.com/apis/v2/sports/racing/motogp/standings"
+  scan_interval: 3600
+  sensor:
+    - name: motogp_rider_standings
+      json_attributes:
+        - standings
+      value_template: "OK"
+
+# === CLASSEMENT CONSTRUCTEURS (toutes les heures) ===
+- resource: "https://site.web.api.espn.com/apis/v2/sports/racing/motogp/standings?group=constructor"
+  scan_interval: 3600
+  sensor:
+    - name: motogp_constructor_standings
+      json_attributes:
+        - standings
+      value_template: "OK"
+
+# === CALENDRIER SAISON (toutes les 24h) ===
+- resource: "https://site.api.espn.com/apis/site/v2/sports/racing/motogp/schedule"
+  scan_interval: 86400
+  sensor:
+    - name: motogp_calendar
+      json_attributes:
+        - events
+      value_template: >-
+        {%- if value_json.events is defined -%}
+          {{ value_json.events | length }} GP
+        {%- else -%}
+          unavailable
+        {%- endif -%}

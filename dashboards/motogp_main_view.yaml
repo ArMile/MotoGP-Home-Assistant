@@ -1,0 +1,38 @@
+# -------------------------------------------------------------------------------------------
+# Vue MotoGP — Dashboard principal
+#
+# INSTALLATION : Ajouter ce bloc dans ui_lovelace.yaml, sous la clé views:
+#
+#   views:
+#     ... (vos autres vues)
+#     - !include MotoGP/dashboards/motogp_main_view.yaml
+#
+# Ou copier le contenu directement sous views:
+# -------------------------------------------------------------------------------------------
+
+title: MotoGP
+path: motogp
+icon: mdi:racing-helmet
+badges: []
+cards:
+
+  # ─── Navigation ────────────────────────────────────────────────────────────
+  - !include ../cards/MOTOGP-Navigation.yaml
+
+  # ─── Grille 3 colonnes : Prochain GP | Classements | News ──────────────────
+  - type: grid
+    columns: 3
+    square: false
+    cards:
+
+      # Colonne 1 : Prochain Grand Prix avec programme sessions
+      - !include ../cards/MOTOGP-Prochain_GP.yaml
+
+      # Colonne 2 : Classements empilés (pilotes + constructeurs)
+      - type: vertical-stack
+        cards:
+          - !include ../cards/MOTOGP-Classement_Pilotes.yaml
+          - !include ../cards/MOTOGP-Classement_Constructeurs.yaml
+
+      # Colonne 3 : Actualités MotoGP
+      - !include ../cards/MOTOGP-News.yaml

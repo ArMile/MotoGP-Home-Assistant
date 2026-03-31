@@ -1,0 +1,46 @@
+# -------------------------------------------------------------------------------------------
+# Automation : MotoGP - Notification Grand Prix ce week-end
+# Trigger    : Tous les jours à 08h00
+# Condition  : Un GP a lieu dans les 3 prochains jours
+# Action     : Notification sur les appareils mobiles
+# Entités    : sensor.motogp_scoreboard
+# -------------------------------------------------------------------------------------------
+
+alias: "MotoGP - Grand Prix ce week-end"
+description: "Envoie une notification si un GP MotoGP a lieu dans les 3 prochains jours"
+trigger:
+  - platform: time
+    at: "08:00:00"
+condition:
+  - condition: template
+    value_template: >
+      {% set s = states.sensor.motogp_scoreboard %}
+      {% if s and s.attributes.events is defined and s.attributes.events | length > 0 %}
+        {% set ev = s.attributes.events[0] %}
+        {% set ev_state = ev.status.type.state | default('') %}
+        {% if ev_state in ['pre', 'in'] %}
+          {% set ev_date = as_datetime(ev.date) %}
+          {% set days_until = (ev_date.date() - now().date()).days %}
+          {{ days_until >= 0 and days_until <= 3 }}
+        {% else %}
+          false
+        {% endif %}
+      {% else %}
+        false
+      {% endif %}
+action:
+  - service: notify.notify
+    data:
+      title: "🏍️ MotoGP ce week-end !"
+      message: >
+        {% set ev = states.sensor.motogp_scoreboard.attributes.events[0] %}
+        {% set gp_name = ev.name | replace('2025 ', '') | replace('2026 ', '') | replace('2027 ', '') %}
+        {% set circuit = ev.venue.fullName | default('') %}
+        {% set country = ev.venue.address.country | default('') %}
+        {{ gp_name }}{% if country %} — {{ country }}{% endif %}{% if circuit %} ({{ circuit }}){% endif %}
+      data:
+        push:
+          sound: default
+        group: motogp
+        tag: motogp_weekend
+mode: single

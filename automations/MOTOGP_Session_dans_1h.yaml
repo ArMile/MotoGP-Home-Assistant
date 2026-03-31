@@ -1,0 +1,57 @@
+# -------------------------------------------------------------------------------------------
+# Automation : MotoGP - Rappel session dans 1 heure
+# Trigger    : Toutes les heures (au top de l'heure)
+# Condition  : Une session MotoGP commence dans ~60 min
+# Action     : Notification avec le nom et l'heure de la session
+# Entités    : sensor.motogp_scoreboard
+# -------------------------------------------------------------------------------------------
+
+alias: "MotoGP - Session dans 1 heure"
+description: "Rappel 1h avant chaque session du week-end (FP, Qualifs, Sprint, Course)"
+trigger:
+  - platform: time_pattern
+    minutes: "0"
+condition:
+  - condition: template
+    value_template: >
+      {% set s = states.sensor.motogp_scoreboard %}
+      {% if s and s.attributes.events is defined and s.attributes.events | length > 0 %}
+        {% set ev = s.attributes.events[0] %}
+        {% set found = namespace(value=false) %}
+        {% for comp in ev.competitions | default([]) %}
+          {% if not comp.status.type.completed | default(false) %}
+            {% set session_time = as_datetime(comp.date) %}
+            {% set seconds_until = (session_time - now()).total_seconds() %}
+            {% if seconds_until > 3300 and seconds_until < 3900 %}
+              {% set found.value = true %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ found.value }}
+      {% else %}
+        false
+      {% endif %}
+action:
+  - service: notify.notify
+    data:
+      title: "⏱️ MotoGP dans 1 heure !"
+      message: >
+        {% set ev = states.sensor.motogp_scoreboard.attributes.events[0] %}
+        {% set session_info = namespace(name='', time='') %}
+        {% for comp in ev.competitions | default([]) %}
+          {% if not comp.status.type.completed | default(false) %}
+            {% set session_time = as_datetime(comp.date) %}
+            {% set seconds_until = (session_time - now()).total_seconds() %}
+            {% if seconds_until > 3300 and seconds_until < 3900 %}
+              {% set session_info.name = comp.name %}
+              {% set session_info.time = session_time.strftime('%H:%M') %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ session_info.name }} — {{ session_info.time }}
+      data:
+        push:
+          sound: default
+        group: motogp
+        tag: motogp_session_reminder
+mode: single

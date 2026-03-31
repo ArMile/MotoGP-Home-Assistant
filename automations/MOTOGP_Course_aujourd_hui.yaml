@@ -1,0 +1,52 @@
+# -------------------------------------------------------------------------------------------
+# Automation : MotoGP - Notification Jour de Course
+# Trigger    : Tous les jours à 09h00
+# Condition  : La course MotoGP a lieu aujourd'hui
+# Action     : Notification avec l'heure de départ
+# Entités    : sensor.motogp_scoreboard
+# -------------------------------------------------------------------------------------------
+
+alias: "MotoGP - Course aujourd'hui"
+description: "Notification le jour de la course principale MotoGP avec l'heure de départ"
+trigger:
+  - platform: time
+    at: "09:00:00"
+condition:
+  - condition: template
+    value_template: >
+      {% set s = states.sensor.motogp_scoreboard %}
+      {% if s and s.attributes.events is defined and s.attributes.events | length > 0 %}
+        {% set ev = s.attributes.events[0] %}
+        {% set has_race_today = namespace(value=false) %}
+        {% for comp in ev.competitions | default([]) %}
+          {% if 'Race' in comp.name | default('') and not comp.status.type.completed | default(false) %}
+            {% set race_date = as_datetime(comp.date) %}
+            {% if race_date.date() == now().date() %}
+              {% set has_race_today.value = true %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ has_race_today.value }}
+      {% else %}
+        false
+      {% endif %}
+action:
+  - service: notify.notify
+    data:
+      title: "🏁 Course MotoGP aujourd'hui !"
+      message: >
+        {% set ev = states.sensor.motogp_scoreboard.attributes.events[0] %}
+        {% set gp_name = ev.name | replace('2025 ', '') | replace('2026 ', '') | replace('2027 ', '') %}
+        {% set race_info = namespace(time='') %}
+        {% for comp in ev.competitions | default([]) %}
+          {% if 'Race' in comp.name | default('') and not comp.status.type.completed | default(false) %}
+            {% set race_info.time = as_datetime(comp.date).strftime('%H:%M') %}
+          {% endif %}
+        {% endfor %}
+        {{ gp_name }} — Départ à {{ race_info.time }}
+      data:
+        push:
+          sound: default
+        group: motogp
+        tag: motogp_race_day
+mode: single
