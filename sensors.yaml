@@ -1,124 +1,279 @@
 # -------------------------------------------------------------------------------------------
 # MotoGP - REST Sensors Configuration
-# Source : ESPN API (public, sans clé)
+# Source   : API Officielle MotoGP (api.motogp.pulselive.com/motogp/v1)
+# Màj      : Avril 2026
+#
+# ARCHITECTURE :
+#   • Broadcast API  → Calendrier, événements, riders, statuts
+#   • Results API    → Classements pilotes (nécessite UUIDs)
+#   • Live Timing    → Données session en temps réel (sans UUID)
+#
+# UUIDs CATÉGORIES — deux sets distincts selon l'API utilisée :
+#
+#   Broadcast API (/categories?seasonYear=) :
+#     MotoGP : 737ab122-76e1-4081-bedb-334caaa18c70
+#     Moto2  : ea854a67-73a4-4a28-ac77-d67b3b2a530a
+#     Moto3  : 1ab203aa-e292-4842-8bed-971911357af1
+#
+#   Results API (/results/standings) — ceux à utiliser pour les classements :
+#     MotoGP : e8c110ad-64aa-4e8e-8a86-f2f152f6a942
+#     Moto2  : 549640b8-fd9c-4245-acfd-60e4bc38b25c
+#     Moto3  : 954f7e65-2ef2-4423-b949-4961cc603e45
+#
+# UUID SAISON (change chaque année) :
+#   2025 : db8dc197-c7b2-4c1b-b3a4-6dc534c023ef  ← utilisé en fallback
+#   2026 : récupéré dynamiquement via sensor.motogp_seasons
+#          → vérifier dans Outils de dev → États après le premier restart
+#          → remplacer l'UUID 2025 par l'UUID 2026 dans les sensors 5/6/7
 #
 # INSTALLATION dans configuration.yaml :
-#   rest: !include MotoGP/sensors.yaml
+#   rest: !include motogp.yaml
 #
-# Si vous avez déjà une section rest: existante, fusionnez le contenu.
 # Redémarrage HA requis après modification.
 # -------------------------------------------------------------------------------------------
 
-# === SCOREBOARD — Prochain GP / GP en cours (toutes les 15 min) ===
-- resource: "https://site.api.espn.com/apis/site/v2/sports/racing/motogp/scoreboard"
-  scan_interval: 900
-  sensor:
-    - name: motogp_scoreboard
-      json_attributes:
-        - events
-        - season
-        - week
-      value_template: >-
-        {%- if value_json.events is defined and value_json.events | length > 0 -%}
-          {{ value_json.events[0].status.type.name | default('STATUS_SCHEDULED') }}
-        {%- else -%}
-          unavailable
-        {%- endif -%}
 
-# === LIVE — Mise à jour toutes les 5 min (passer à 60s pendant les sessions) ===
-# Tip : Créer une automation pour baisser scan_interval à 60s le week-end GP
-- resource: "https://site.api.espn.com/apis/site/v2/sports/racing/motogp/scoreboard"
-  scan_interval: 300
+# ===========================================================================
+# 1. SAISONS DISPONIBLES — Results API
+# Retourne la liste des saisons avec leurs UUIDs
+# Interval : quotidien
+# Usage    : récupérer l'UUID de la saison courante
+#            → vérifier sensor.motogp_seasons dans Outils de développement
+# ===========================================================================
+- resource: "https://api.motogp.pulselive.com/motogp/v1/results/seasons"
+  scan_interval: 86400
+  headers:
+    User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    Accept: "application/json"
+    Referer: "https://www.motogp.com/"
   sensor:
-    - name: motogp_live
-      json_attributes:
-        - events
+    - name: motogp_seasons
       value_template: >-
-        {%- if value_json.events is defined and value_json.events | length > 0 -%}
-          {%- set ev = value_json.events[0] -%}
-          {%- if ev.status.type.state == 'in' -%}
-            IN
-          {%- elif ev.status.type.state == 'pre' -%}
-            PRE
+        {%- if value_json is iterable and value_json | length > 0 -%}
+          {%- set current = value_json | selectattr('current', 'eq', true) | list -%}
+          {%- if current | length > 0 -%}
+            {{ current[0].year }}
           {%- else -%}
-            POST
+            {{ value_json[0].year }}
           {%- endif -%}
         {%- else -%}
           unavailable
         {%- endif -%}
-
-# === CLASSEMENT PILOTES (toutes les heures) ===
-- resource: "https://site.web.api.espn.com/apis/v2/sports/racing/motogp/standings"
-  scan_interval: 3600
-  sensor:
-    - name: motogp_rider_standings
       json_attributes:
-        - standings
-      value_template: "OK"
+        - []
+      json_attributes_path: "$"
 
-# === CLASSEMENT CONSTRUCTEURS (toutes les heures) ===
-- resource: "https://site.web.api.espn.com/apis/v2/sports/racing/motogp/standings?group=constructor"
+
+# ===========================================================================
+# 2. CALENDRIER 2026 — Broadcast API
+# Endpoint : /events?seasonYear=2026
+# Interval : toutes les heures
+# Usage    : liste des GP, circuits, pays, dates, statuts, sessions weekend
+# ===========================================================================
+- resource: "https://api.motogp.pulselive.com/motogp/v1/events?seasonYear=2026"
   scan_interval: 3600
-  sensor:
-    - name: motogp_constructor_standings
-      json_attributes:
-        - standings
-      value_template: "OK"
-
-# === CALENDRIER SAISON (toutes les 24h) ===
-- resource: "https://site.api.espn.com/apis/site/v2/sports/racing/motogp/schedule"
-  scan_interval: 86400
+  headers:
+    User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    Accept: "application/json"
+    Referer: "https://www.motogp.com/"
   sensor:
     - name: motogp_calendar
-      json_attributes:
-        - events
       value_template: >-
-        {%- if value_json.events is defined -%}
-          {{ value_json.events | length }} GP
+        {%- if value_json is iterable -%}
+          {%- set gps = value_json | selectattr('kind', 'eq', 'GP') | list -%}
+          {{ gps | length }} GP
         {%- else -%}
           unavailable
         {%- endif -%}
+      json_attributes:
+        - []
+      json_attributes_path: "$"
 
-# -------------------------------------------------------------------------------------------
-# MOTO2
-# -------------------------------------------------------------------------------------------
 
-# === MOTO2 — CLASSEMENT PILOTES (toutes les heures) ===
-- resource: "https://site.web.api.espn.com/apis/v2/sports/racing/moto2/standings"
+# ===========================================================================
+# 3. PROCHAIN GP / GP EN COURS — Broadcast API (refresh 15 min)
+# Même source que le calendrier, interval réduit
+# Usage    : état de l'événement courant (PRE / IN / POST)
+# ===========================================================================
+- resource: "https://api.motogp.pulselive.com/motogp/v1/events?seasonYear=2026"
+  scan_interval: 900
+  headers:
+    User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    Accept: "application/json"
+    Referer: "https://www.motogp.com/"
+  sensor:
+    - name: motogp_next_event
+      value_template: >-
+        {%- if value_json is iterable -%}
+          {%- set gps = value_json | selectattr('kind', 'eq', 'GP') | list -%}
+          {%- set live = gps | selectattr('status', 'eq', 'In Progress') | list -%}
+          {%- set upcoming = gps | selectattr('status', 'eq', 'Upcoming') | list -%}
+          {%- if live | length > 0 -%}IN
+          {%- elif upcoming | length > 0 -%}PRE
+          {%- else -%}POST
+          {%- endif -%}
+        {%- else -%}
+          unavailable
+        {%- endif -%}
+      json_attributes:
+        - []
+      json_attributes_path: "$"
+
+
+# ===========================================================================
+# 4. LIVE TIMING — Results API
+# Endpoint : /timing-gateway/livetiming-lite
+# Interval : 30 secondes (pas d'UUID requis)
+# Usage    : classement temps réel, écarts, tours, meilleur temps de la session
+# Note     : retourne toujours la dernière/prochaine session active
+# ===========================================================================
+- resource: "https://api.motogp.pulselive.com/motogp/v1/timing-gateway/livetiming-lite"
+  scan_interval: 30
+  headers:
+    User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    Accept: "application/json"
+    Referer: "https://www.motogp.com/"
+  sensor:
+    - name: motogp_live_timing
+      value_template: >-
+        {%- if value_json.head is defined -%}
+          {%- set st = value_json.head.session_status_name | default('') -%}
+          {%- if st in ['Started', 'In Progress', 'S'] -%}IN
+          {%- elif st in ['F', 'Finished', 'Official'] -%}POST
+          {%- else -%}PRE
+          {%- endif -%}
+        {%- else -%}
+          unavailable
+        {%- endif -%}
+      json_attributes:
+        - head
+        - rider
+
+
+# ===========================================================================
+# 5. CLASSEMENT PILOTES MotoGP — Results API
+#
+# ⚠️  UUID SAISON : actuellement 2025 (fallback)
+#     Après le premier restart, vérifier sensor.motogp_seasons dans
+#     Outils de dev → États → attributs → chercher l'UUID avec current=true
+#     puis remplacer l'UUID ci-dessous par celui de 2026.
+#
+# UUID Cat. MotoGP (Results API) : e8c110ad-64aa-4e8e-8a86-f2f152f6a942
+# UUID Saison 2026               : e88b4e43-2209-47aa-8e83-0e0b1cedde6e
+# ===========================================================================
+- resource: "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=e88b4e43-2209-47aa-8e83-0e0b1cedde6e&categoryUuid=e8c110ad-64aa-4e8e-8a86-f2f152f6a942"
   scan_interval: 3600
+  headers:
+    User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    Accept: "application/json"
+    Referer: "https://www.motogp.com/"
+  sensor:
+    - name: motogp_rider_standings
+      value_template: >-
+        {%- if value_json.classification is defined -%}
+          {{ value_json.classification | length }} pilotes
+        {%- else -%}
+          unavailable
+        {%- endif -%}
+      json_attributes:
+        - classification
+        - file
+
+
+# ===========================================================================
+# 6. CLASSEMENT PILOTES Moto2 — Results API
+# UUID Cat. Moto2 (Results API) : 549640b8-fd9c-4245-acfd-60e4bc38b25c
+# UUID Saison 2026              : e88b4e43-2209-47aa-8e83-0e0b1cedde6e
+# ===========================================================================
+- resource: "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=e88b4e43-2209-47aa-8e83-0e0b1cedde6e&categoryUuid=549640b8-fd9c-4245-acfd-60e4bc38b25c"
+  scan_interval: 3600
+  headers:
+    User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    Accept: "application/json"
+    Referer: "https://www.motogp.com/"
   sensor:
     - name: moto2_rider_standings
+      value_template: >-
+        {%- if value_json.classification is defined -%}
+          {{ value_json.classification | length }} pilotes
+        {%- else -%}
+          unavailable
+        {%- endif -%}
       json_attributes:
-        - standings
-      value_template: "OK"
+        - classification
+        - file
 
-# === MOTO2 — CLASSEMENT CONSTRUCTEURS (toutes les heures) ===
-- resource: "https://site.web.api.espn.com/apis/v2/sports/racing/moto2/standings?group=constructor"
+
+# ===========================================================================
+# 7. CLASSEMENT PILOTES Moto3 — Results API
+# UUID Cat. Moto3 (Results API) : 954f7e65-2ef2-4423-b949-4961cc603e45
+# UUID Saison 2026              : e88b4e43-2209-47aa-8e83-0e0b1cedde6e
+# ===========================================================================
+- resource: "https://api.motogp.pulselive.com/motogp/v1/results/standings?seasonUuid=e88b4e43-2209-47aa-8e83-0e0b1cedde6e&categoryUuid=954f7e65-2ef2-4423-b949-4961cc603e45"
   scan_interval: 3600
-  sensor:
-    - name: moto2_constructor_standings
-      json_attributes:
-        - standings
-      value_template: "OK"
-
-# -------------------------------------------------------------------------------------------
-# MOTO3
-# -------------------------------------------------------------------------------------------
-
-# === MOTO3 — CLASSEMENT PILOTES (toutes les heures) ===
-- resource: "https://site.web.api.espn.com/apis/v2/sports/racing/moto3/standings"
-  scan_interval: 3600
+  headers:
+    User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    Accept: "application/json"
+    Referer: "https://www.motogp.com/"
   sensor:
     - name: moto3_rider_standings
+      value_template: >-
+        {%- if value_json.classification is defined -%}
+          {{ value_json.classification | length }} pilotes
+        {%- else -%}
+          unavailable
+        {%- endif -%}
       json_attributes:
-        - standings
-      value_template: "OK"
+        - classification
+        - file
 
-# === MOTO3 — CLASSEMENT CONSTRUCTEURS (toutes les heures) ===
-- resource: "https://site.web.api.espn.com/apis/v2/sports/racing/moto3/standings?group=constructor"
-  scan_interval: 3600
+
+# ===========================================================================
+# 8. PILOTES EN GRILLE — Broadcast API
+# Endpoint : /riders  (saison courante uniquement)
+# Interval : quotidien
+# Usage    : photo, nationalité, équipe, numéro de chaque pilote
+# ===========================================================================
+- resource: "https://api.motogp.pulselive.com/motogp/v1/riders"
+  scan_interval: 86400
+  headers:
+    User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    Accept: "application/json"
+    Referer: "https://www.motogp.com/"
   sensor:
-    - name: moto3_constructor_standings
+    - name: motogp_riders
+      value_template: >-
+        {%- if value_json is iterable -%}
+          {{ value_json | length }} pilotes
+        {%- else -%}
+          unavailable
+        {%- endif -%}
       json_attributes:
-        - standings
-      value_template: "OK"
+        - []
+      json_attributes_path: "$"
+
+
+# ===========================================================================
+# 9. CATÉGORIES — UUIDs exposés pour le dashboard
+# Endpoint : /categories?seasonYear=2026
+# Interval : quotidien
+# Usage    : le dashboard JS lit les UUIDs depuis les attributs de ce sensor
+#            pour construire les URLs d'historique dynamiquement
+# ===========================================================================
+- resource: "https://api.motogp.pulselive.com/motogp/v1/categories?seasonYear=2026"
+  scan_interval: 86400
+  headers:
+    User-Agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    Accept: "application/json"
+    Referer: "https://www.motogp.com/"
+  sensor:
+    - name: motogp_categories
+      value_template: >-
+        {%- if value_json is iterable -%}
+          {{ value_json | length }} catégories
+        {%- else -%}
+          unavailable
+        {%- endif -%}
+      json_attributes:
+        - []
+      json_attributes_path: "$"

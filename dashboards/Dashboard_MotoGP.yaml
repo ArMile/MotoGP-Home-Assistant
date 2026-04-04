@@ -1,0 +1,1156 @@
+views:
+  # ============================================================
+  # VUE 1 — MotoGP : Calendrier + Classements + Actualités
+  # ============================================================
+  - title: MotoGP
+    path: motogp
+    icon: mdi:racing-helmet
+    panel: true
+    badges: []
+    cards:
+      - type: custom:layout-card
+        layout_type: custom:grid-layout
+        layout:
+          grid-template-columns: 1fr 1fr
+          grid-gap: 12px
+          margin: 0
+          padding: 12px
+        cards:
+
+          # ── COL 1 : Calendrier + Actualités ──────────────────────────────────
+          - type: vertical-stack
+            cards:
+              - type: custom:button-card
+                show_name: false
+                show_icon: false
+                tap_action:
+                  action: none
+                styles:
+                  card:
+                    - background: rgba(20,27,38,0.6)
+                    - backdrop-filter: blur(10px)
+                    - border-radius: 20px
+                    - border: 1px solid rgba(255,255,255,0.1)
+                    - box-shadow: 0 4px 15px rgba(0,0,0,0.3)
+                    - padding: 0
+                    - overflow: hidden
+                  grid:
+                    - grid-template-areas: '"content"'
+                    - grid-template-columns: 100%
+                  custom_fields:
+                    content:
+                      - pointer-events: auto
+                custom_fields:
+                  content: |
+                    [[[
+                      const s = states['sensor.motogp_next_gp'];
+                      if (!s || s.state === 'unavailable' || s.state === 'unknown' || s.state === 'error') {
+                        return `<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.4);font-family:Roboto,sans-serif;">
+                          <div style="font-size:48px;margin-bottom:14px;">🏍️</div>
+                          <div style="font-size:15px;">Chargement calendrier...</div>
+                        </div>`;
+                      }
+
+                      const a        = s.attributes;
+                      const calendar = a.calendar || [];
+                      const now      = new Date();
+
+                      const getFlag = (iso, h) => { if(!iso) return ''; h=h||18; const cc={'SM':'it','TW':'tw'}[iso]||iso.toLowerCase(); return '<img src="https://flagcdn.com/w40/'+cc+'.png" style="height:'+h+'px;width:auto;border-radius:2px;vertical-align:middle;" onerror="this.style.display=\'none\'">'; };
+
+                      const mois = ['jan.','fév.','mar.','avr.','mai','juin','juil.','août','sep.','oct.','nov.','déc.'];
+
+                      const rows = calendar.map(gp => {
+                        const isLive     = gp.status === 'In Progress';
+                        const isFinished = gp.status === 'FINISHED';
+                        const isNext     = gp.status === 'NOT-STARTED';
+                        const flag       = getFlag(gp.country, 18);
+                        const gpName     = (gp.name || '').replace(/^\d{4}\s+/, '').replace(/^\s+|\s+$/g, '');
+
+                        // Dates
+                        const dStart = gp.date_start ? new Date(gp.date_start) : null;
+                        const dEnd   = gp.date_end   ? new Date(gp.date_end)   : null;
+                        let dateStr  = '—';
+                        if (dStart && dEnd) {
+                          const sameMonth = dStart.getMonth() === dEnd.getMonth();
+                          dateStr = sameMonth
+                            ? `${dStart.getDate()}–${dEnd.getDate()} ${mois[dStart.getMonth()]}`
+                            : `${dStart.getDate()} ${mois[dStart.getMonth()]} – ${dEnd.getDate()} ${mois[dEnd.getMonth()]}`;
+                        }
+
+                        // Countdown pour le prochain GP
+                        let countdownStr = '';
+                        if (isNext && dStart) {
+                          const ms = dStart - now;
+                          if (ms > 0) {
+                            const dd = Math.floor(ms / 86400000);
+                            const hh = Math.floor((ms % 86400000) / 3600000);
+                            countdownStr = dd > 0 ? `dans ${dd}j` : `dans ${hh}h`;
+                          }
+                        }
+
+                        // Styles selon statut
+                        let rowBg, roundColor, nameColor, opacity;
+                        if (isLive) {
+                          rowBg      = 'background:linear-gradient(90deg,rgba(255,74,74,0.15),rgba(255,102,0,0.08));border-left:3px solid #ff4a4a;';
+                          roundColor = '#ff4a4a';
+                          nameColor  = 'white';
+                          opacity    = '1';
+                        } else if (isNext) {
+                          // Premier NOT-STARTED = prochain GP surlign en orange
+                          const isVeryNext = calendar.findIndex(g => g.status === 'NOT-STARTED') === calendar.indexOf(gp);
+                          if (isVeryNext) {
+                            rowBg      = 'background:linear-gradient(90deg,rgba(255,102,0,0.12),rgba(255,102,0,0.04));border-left:3px solid #ff6600;';
+                            roundColor = '#ff6600';
+                            nameColor  = 'white';
+                            opacity    = '1';
+                          } else {
+                            rowBg      = 'border-left:3px solid transparent;';
+                            roundColor = 'rgba(255,255,255,0.4)';
+                            nameColor  = 'rgba(255,255,255,0.7)';
+                            opacity    = '1';
+                          }
+                        } else {
+                          // FINISHED
+                          rowBg      = 'border-left:3px solid transparent;';
+                          roundColor = 'rgba(255,255,255,0.25)';
+                          nameColor  = 'rgba(255,255,255,0.35)';
+                          opacity    = '0.6';
+                        }
+
+                        const statusBadge = isLive
+                          ? '<span style="background:#ff4a4a;color:white;font-size:9px;padding:2px 7px;border-radius:6px;font-weight:700;animation:pulseBadge 1.5s infinite;margin-left:6px;">LIVE</span>'
+                          : countdownStr
+                          ? `<span style="color:#4fc3f7;font-size:11px;margin-left:6px;font-weight:700;">${countdownStr}</span>`
+                          : isFinished
+                          ? '<span style="color:#4caf50;font-size:12px;margin-left:4px;">✓</span>'
+                          : '';
+
+                        return `<div style="display:flex;align-items:center;padding:9px 16px;border-bottom:1px solid rgba(255,255,255,0.04);opacity:${opacity};${rowBg}transition:background 0.2s;">
+                          <div style="width:28px;text-align:center;font-size:13px;font-weight:800;color:${roundColor};flex-shrink:0;">${gp.round}</div>
+                          <div style="margin:0 10px;flex-shrink:0;display:flex;align-items:center;">${flag}</div>
+                          <div style="flex:1;min-width:0;">
+                            <div style="display:flex;align-items:center;">
+                              <span style="font-size:14px;font-weight:${isLive||countdownStr?'800':'600'};color:${nameColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                ${gpName}
+                              </span>
+                              ${statusBadge}
+                            </div>
+                            <div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:1px;">${gp.circuit_city || gp.circuit_name || ''}</div>
+                          </div>
+                          <div style="text-align:right;flex-shrink:0;margin-left:8px;">
+                            <div style="font-size:12px;font-weight:600;color:${isLive?'#ff4a4a':countdownStr?'#ff6600':'rgba(255,255,255,0.4)'};">${dateStr}</div>
+                          </div>
+                        </div>`;
+                      }).join('');
+
+                      const totalRounds = a.total_rounds || calendar.length;
+                      const doneCount   = calendar.filter(g => g.status === 'FINISHED').length;
+
+                      return `<div style="font-family:Roboto,sans-serif;">
+                        <div style="padding:16px 18px 12px;border-bottom:1px solid rgba(255,255,255,0.08);
+                                    display:flex;align-items:center;justify-content:space-between;">
+                          <div style="display:flex;align-items:center;gap:12px;">
+                            <div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#ff6600,#cc3300);
+                                        display:flex;align-items:center;justify-content:center;font-size:20px;">🏁</div>
+                            <div>
+                              <div style="font-size:17px;font-weight:800;color:white;text-transform:uppercase;">Calendrier 2026</div>
+                              <div style="font-size:11px;color:rgba(255,255,255,0.4);">MotoGP World Championship</div>
+                            </div>
+                          </div>
+                          <div style="text-align:right;">
+                            <div style="font-size:22px;font-weight:900;color:#ff6600;">${doneCount}<span style="font-size:13px;color:rgba(255,255,255,0.3);font-weight:400;">/${totalRounds}</span></div>
+                            <div style="font-size:10px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:1px;">GP courus</div>
+                          </div>
+                        </div>
+                        <div style="overflow-y:auto;max-height:600px;">
+                          ${rows || '<div style="padding:20px;color:rgba(255,255,255,0.3);font-size:14px;text-align:center;">Calendrier non disponible</div>'}
+                        </div>
+                      </div>
+                      <style>@keyframes pulseBadge{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.95)}}</style>`;
+                    ]]]
+
+              - type: custom:button-card
+                show_name: false
+                show_icon: false
+                tap_action:
+                  action: none
+                styles:
+                  card:
+                    - background: rgba(20,27,38,0.6)
+                    - backdrop-filter: blur(10px)
+                    - border-radius: 20px
+                    - border: 1px solid rgba(255,255,255,0.1)
+                    - box-shadow: 0 4px 15px rgba(0,0,0,0.3)
+                    - padding: 0
+                    - overflow: hidden
+                  grid:
+                    - grid-template-areas: '"content"'
+                    - grid-template-columns: 100%
+                  custom_fields:
+                    content:
+                      - pointer-events: auto
+                custom_fields:
+                  content: |
+                    [[[
+                      const s = states['sensor.motogp_news'];
+                      if (!s || !s.attributes.items) {
+                        return `<div style="padding:32px;text-align:center;color:rgba(255,255,255,0.4);font-family:Roboto,sans-serif;"><div style="font-size:32px;margin-bottom:12px;">📰</div>Chargement des actualités...</div>`;
+                      }
+                      const items = s.attributes.items || [];
+                      const newsRows = items.slice(0, 10).map(item => {
+                        const title   = (item.title || '').replace(/ - .*$/, '').trim();
+                        const pubDate = item.pubDate ? new Date(item.pubDate) : null;
+                        const timeStr = pubDate ? pubDate.toLocaleDateString('fr-FR', {day:'numeric', month:'short'}) : '';
+                        const url     = item.link || item.url || '#';
+                        return `<div onclick="window.open('${url}','_blank')" style="display:flex;align-items:flex-start;gap:14px;padding:13px 20px;border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='rgba(255,102,0,0.08)'" onmouseout="this.style.background='transparent'">
+                          <div style="flex-shrink:0;width:6px;height:6px;border-radius:50%;background:#ff6600;margin-top:8px;box-shadow:0 0 6px #ff6600;"></div>
+                          <div style="flex:1;min-width:0;">
+                            <div style="font-size:15px;font-weight:600;color:white;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${title}</div>
+                            <div style="font-size:12px;color:rgba(255,255,255,0.35);margin-top:3px;">${timeStr}</div>
+                          </div>
+                        </div>`;
+                      }).join('');
+                      return `<div style="font-family:Roboto,sans-serif;">
+                        <div style="padding:20px 20px 16px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;gap:14px;">
+                          <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#ff6600,#cc3300);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">📰</div>
+                          <div>
+                            <div style="font-size:18px;font-weight:800;color:white;text-transform:uppercase;">Actualités MotoGP</div>
+                            <div style="font-size:12px;color:rgba(255,255,255,0.4);">Google News · FR</div>
+                          </div>
+                        </div>
+                        <div style="padding:4px 0;">${newsRows || '<div style="padding:20px;color:rgba(255,255,255,0.3);font-size:14px;text-align:center;">Aucun article</div>'}</div>
+                      </div>`;
+                    ]]]
+
+          # ── COL 2 : Classements ───────────────────────────────────────────────
+          - type: vertical-stack
+            cards:
+              - type: custom:button-card
+                show_name: false
+                show_icon: false
+                tap_action:
+                  action: none
+                styles:
+                  card:
+                    - background: rgba(20,27,38,0.6)
+                    - backdrop-filter: blur(10px)
+                    - border-radius: 20px
+                    - border: 1px solid rgba(255,255,255,0.1)
+                    - box-shadow: 0 4px 15px rgba(0,0,0,0.3)
+                    - padding: 0
+                    - overflow: hidden
+                  grid:
+                    - grid-template-areas: '"content"'
+                    - grid-template-columns: 100%
+                  custom_fields:
+                    content:
+                      - pointer-events: auto
+                custom_fields:
+                  content: |
+                    [[[
+                      const s = states['sensor.motogp_rider_standings'];
+                      if (!s || !s.attributes.classification) {
+                        return `<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.4);font-family:Roboto,sans-serif;"><div style="font-size:36px;margin-bottom:10px;">🏆</div><div style="font-size:15px;">Chargement classement...</div></div>`;
+                      }
+                      const entries = s.attributes.classification || [];
+                      const frTop = entries.filter(e => e.rider?.country?.iso === 'FR');
+                      const cC = {Ducati:'#cc0000',Honda:'#e40521',Yamaha:'#003087',KTM:'#ff6b00',Aprilia:'#002060'};
+                      const gC = n => { for(const[k,c] of Object.entries(cC)) if(n&&n.includes(k)) return c; return '#4fc3f7'; };
+                      const isFR = e => e.rider?.country?.iso === 'FR';
+                      const rR = (entry) => {
+                        const rank=entry.position||'—'; const pts=entry.points??'—'; const wins=entry.race_wins??0;
+                        const name=entry.rider?.full_name||'—'; const short=name.split(' ').pop().toUpperCase();
+                        const fr=isFR(entry); const r=parseInt(rank)||99;
+                        const rc=r===1?'#ffd700':r===2?'#c0c0c0':r===3?'#cd7f32':r<=10?'#4fc3f7':'#a9b1d6';
+                        const color=gC(entry.constructor?.name||'');
+                        const rs=fr?'background:linear-gradient(90deg,rgba(0,85,164,0.15),rgba(239,65,53,0.1));':'';
+                        const ns=fr?'font-weight:900;color:#fff;':'font-weight:600;color:rgba(255,255,255,0.9);';
+                        return `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);${rs}">
+                          <td style="width:40px;padding:8px 12px;font-weight:800;color:${rc};border-left:3px solid ${rc};font-size:16px;">${rank}</td>
+                          <td style="padding:8px 6px;max-width:160px;"><div style="display:flex;align-items:center;gap:6px;">${fr?'<span style="font-size:14px;">🇫🇷</span>':''}<span style="${ns}font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:120px;">${short}</span></div></td>
+                          <td style="padding:8px 6px;text-align:center;"><div style="width:12px;height:12px;border-radius:50%;background:${color};display:inline-block;"></div></td>
+                          <td style="padding:8px 6px;text-align:center;color:rgba(255,255,255,0.5);font-size:14px;">${wins>0?wins:''}</td>
+                          <td style="padding:8px 14px;text-align:right;font-weight:800;color:white;font-size:16px;">${pts}</td>
+                        </tr>`;
+                      };
+                      const top10=entries.slice(0,10); const rest=entries.slice(10);
+                      let exp='';
+                      if(rest.length) exp=`<details onpointerdown="event.stopPropagation()" ontouchstart="event.stopPropagation()" onclick="event.stopPropagation()" style="outline:none;"><summary style="cursor:pointer;text-align:center;display:block;color:rgba(255,255,255,0.6);padding:8px 12px;font-size:13px;font-weight:700;background:rgba(255,255,255,0.03);border-top:1px solid rgba(255,255,255,0.1);outline:none;">▼ TOUT LE CLASSEMENT ▼</summary><table width="100%" style="border-collapse:collapse;color:white;font-family:Roboto,sans-serif;">${rest.map(e=>rR(e)).join('')}</table></details>`;
+                      return `<div style="font-family:Roboto,sans-serif;">
+                        <div style="padding:18px 20px 14px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;">
+                          <div style="display:flex;align-items:center;gap:14px;">
+                            <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#ff6600,#cc3300);display:flex;align-items:center;justify-content:center;font-size:22px;">🏆</div>
+                            <div><div style="font-size:18px;font-weight:800;color:white;text-transform:uppercase;">Pilotes MotoGP</div><div style="font-size:12px;color:rgba(255,255,255,0.4);">Championnat du Monde 2026</div></div>
+                          </div>
+                          ${frTop.length?`<div style="font-size:13px;color:#4fc3f7;">🇫🇷 ${frTop.map(e=>'P'+e.position).join(' · ')}</div>`:''}
+                        </div>
+                        <table width="100%" style="border-collapse:collapse;text-align:left;color:white;font-family:Roboto,sans-serif;">
+                          <tr style="border-bottom:2px solid rgba(255,255,255,0.15);font-size:12px;text-transform:uppercase;color:rgba(255,255,255,0.4);">
+                            <th style="padding:7px 12px;width:40px;">#</th><th style="padding:7px 6px;">Pilote</th>
+                            <th style="padding:7px 6px;text-align:center;width:36px;">Moto</th>
+                            <th style="padding:7px 6px;text-align:center;width:36px;">V</th>
+                            <th style="padding:7px 14px;text-align:right;width:52px;">Pts</th>
+                          </tr>
+                          ${top10.map(e=>rR(e)).join('')}
+                        </table>
+                        ${exp}
+                      </div>`;
+                    ]]]
+
+              - type: custom:button-card
+                show_name: false
+                show_icon: false
+                tap_action:
+                  action: none
+                styles:
+                  card:
+                    - background: rgba(20,27,38,0.6)
+                    - backdrop-filter: blur(10px)
+                    - border-radius: 20px
+                    - border: 1px solid rgba(255,255,255,0.1)
+                    - box-shadow: 0 4px 15px rgba(0,0,0,0.3)
+                    - padding: 0
+                    - overflow: hidden
+                  grid:
+                    - grid-template-areas: '"content"'
+                    - grid-template-columns: 100%
+                  custom_fields:
+                    content:
+                      - pointer-events: auto
+                custom_fields:
+                  content: |
+                    [[[
+                      const s = states['sensor.motogp_rider_standings'];
+                      if (!s || !s.attributes.classification) return `<div style="padding:16px;text-align:center;color:rgba(255,255,255,0.4);font-family:Roboto,sans-serif;font-size:14px;">Chargement...</div>`;
+                      const entries=s.attributes.classification||[];
+                      const cMap={};
+                      for(const e of entries){const n=e.constructor?.name||'Inconnu';if(!cMap[n])cMap[n]={name:n,points:0,wins:0};cMap[n].points+=e.points||0;cMap[n].wins+=e.race_wins||0;}
+                      const constructors=Object.values(cMap).sort((a,b)=>b.points-a.points).map((c,i)=>({...c,pos:i+1}));
+                      const bC={Ducati:'#cc0000',Honda:'#e40521',Yamaha:'#003087',KTM:'#ff6b00',Aprilia:'#002060'};
+                      const gBI=n=>{for(const[k,c] of Object.entries(bC)) if(n&&n.includes(k)) return c; return '#4fc3f7';};
+                      const lPts=constructors[0]?.points||1;
+                      const rows=constructors.map(c=>{
+                        const rc=c.pos===1?'#ffd700':c.pos===2?'#c0c0c0':c.pos===3?'#cd7f32':'#a9b1d6';
+                        const col=gBI(c.name); const bw=Math.round((c.points/lPts)*100);
+                        return `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                          <td style="width:40px;padding:10px 12px;font-weight:800;color:${rc};border-left:3px solid ${rc};font-size:16px;">${c.pos}</td>
+                          <td style="padding:10px 6px;"><div style="display:flex;align-items:center;gap:10px;"><div style="width:12px;height:12px;border-radius:50%;background:${col};flex-shrink:0;"></div><div><div style="font-size:15px;font-weight:700;color:white;">${c.name}</div><div style="width:${bw}%;height:3px;background:${col};border-radius:2px;margin-top:3px;opacity:0.7;"></div></div></div></td>
+                          <td style="padding:10px 6px;text-align:center;font-size:14px;color:rgba(255,255,255,0.5);">${c.wins>0?c.wins+'V':''}</td>
+                          <td style="padding:10px 14px;text-align:right;font-weight:800;color:white;font-size:16px;">${c.points}</td>
+                        </tr>`;
+                      }).join('');
+                      return `<div style="font-family:Roboto,sans-serif;">
+                        <div style="padding:16px 20px 14px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;gap:14px;">
+                          <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#ff6600,#cc3300);display:flex;align-items:center;justify-content:center;font-size:22px;">🏭</div>
+                          <div><div style="font-size:18px;font-weight:800;color:white;text-transform:uppercase;">Constructeurs</div><div style="font-size:12px;color:rgba(255,255,255,0.4);">Championnat du Monde 2026</div></div>
+                        </div>
+                        <table width="100%" style="border-collapse:collapse;text-align:left;color:white;font-family:Roboto,sans-serif;">
+                          <tr style="border-bottom:2px solid rgba(255,255,255,0.12);font-size:12px;text-transform:uppercase;color:rgba(255,255,255,0.35);">
+                            <th style="padding:7px 12px;width:40px;">#</th><th style="padding:7px 6px;">Constructeur</th>
+                            <th style="padding:7px 6px;text-align:center;width:52px;">Victoires</th>
+                            <th style="padding:7px 14px;text-align:right;width:52px;">Pts</th>
+                          </tr>
+                          ${rows}
+                        </table>
+                      </div>`;
+                    ]]]
+
+  # ============================================================
+  # VUE 2 — MotoGP Live
+  # Layout :
+  #   Moitié haute col gauche  : Programme weekend + sélecteur catégorie
+  #   Moitié haute col droite  : Résultats définitifs session cliquée
+  #   Moitié basse col gauche  : Circuit (vrai tracé MotoGP) + infos
+  #   Moitié basse col droite  : Timing live OU message hors session
+  # ============================================================
+  - title: MotoGP Live
+    path: motogp-live
+    icon: mdi:flag-checkered
+    panel: true
+    badges: []
+    cards:
+      - type: custom:layout-card
+        layout_type: custom:grid-layout
+        layout:
+          grid-template-columns: 1fr 1fr
+          grid-template-rows: auto auto
+          grid-gap: 12px
+          margin: 0
+          padding: 12px
+        cards:
+
+          # ── HAUT GAUCHE : Programme weekend ──────────────────────────────────
+          - type: custom:button-card
+            show_name: false
+            show_icon: false
+            tap_action:
+              action: none
+            styles:
+              card:
+                - background: rgba(20,27,38,0.6)
+                - backdrop-filter: blur(10px)
+                - border-radius: 20px
+                - border: 1px solid rgba(255,255,255,0.1)
+                - box-shadow: 0 4px 15px rgba(0,0,0,0.3)
+                - padding: 0
+                - overflow: hidden
+              grid:
+                - grid-template-areas: '"content"'
+                - grid-template-columns: 100%
+              custom_fields:
+                content:
+                  - pointer-events: auto
+            custom_fields:
+              content: |
+                [[[
+                  const s = states['sensor.motogp_next_gp'];
+                  if (!s || s.state === 'unavailable' || s.state === 'unknown') {
+                    return `<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.4);font-family:Roboto,sans-serif;">
+                      <div style="font-size:48px;">🏍️</div>
+                      <div style="font-size:15px;margin-top:14px;">Chargement...</div>
+                    </div>`;
+                  }
+
+                  const a = s.attributes;
+                  const broadcasts = a.broadcasts || [];
+                  const now = new Date();
+
+                  if (!window._motoHass) window._motoHass = hass;
+                  window._motoHass = hass;
+                  if (!window._liveSelSession) window._liveSelSession = null;
+                  if (!window._liveResCache)   window._liveResCache = {};
+                  if (!window._liveResFetching) window._liveResFetching = {};
+                  if (!window._liveCat) window._liveCat = 'MGP';
+
+                  // Changement catégorie : DOM direct, zéro HA call
+                  window._switchLiveCat = cat => {
+                    window._liveCat = cat;
+                    ['MGP','MT2','MT3'].forEach(c => {
+                      const panel = document.getElementById('livecat-' + c);
+                      const btn   = document.getElementById('livebtn-' + c);
+                      const colors = {MGP:'#ff6600', MT2:'#8e44ad', MT3:'#00a651'};
+                      if (panel) panel.style.display = c === cat ? 'block' : 'none';
+                      if (btn) {
+                        btn.style.background = c === cat ? colors[c] : 'transparent';
+                        btn.style.borderColor = c === cat ? colors[c] : 'rgba(255,255,255,0.15)';
+                        btn.style.color = c === cat ? 'white' : 'rgba(255,255,255,0.6)';
+                        btn.style.fontWeight = c === cat ? '800' : '600';
+                      }
+                    });
+                  };
+
+                  window._loadSessionResult = (broadcastId, label) => {
+                    window._liveSelSession = {id: broadcastId, label};
+                    if (!window._liveResCache[broadcastId] && !window._liveResFetching[broadcastId]) {
+                      window._liveResFetching[broadcastId] = true;
+                      fetch('https://api.motogp.pulselive.com/motogp/v1/timing-gateway/livetiming-lite?broadcastId=' + broadcastId, {
+                        headers: {Accept:'application/json', Referer:'https://www.motogp.com/'}
+                      })
+                        .then(r => r.json())
+                        .then(data => {
+                          window._liveResCache[broadcastId] = {ok:true, data};
+                          window._liveResFetching[broadcastId] = false;
+                          window._motoHass.callService('input_text','set_value',{entity_id:'input_text.motogp_history_ts',value:String(Date.now())});
+                        })
+                        .catch(() => {
+                          window._liveResCache[broadcastId] = {ok:false};
+                          window._liveResFetching[broadcastId] = false;
+                          window._motoHass.callService('input_text','set_value',{entity_id:'input_text.motogp_history_ts',value:String(Date.now())});
+                        });
+                    }
+                    window._motoHass.callService('input_text','set_value',{entity_id:'input_text.motogp_history_ts',value:String(Date.now())});
+                  };
+
+                  const catColors   = {MGP:'#ff6600', MT2:'#8e44ad', MT3:'#00a651'};
+                  const catNames    = {MGP:'MotoGP', MT2:'Moto2', MT3:'Moto3'};
+                  const sessionShort = {FP1:'FP1',FP2:'FP2',FP3:'FP3',FP4:'FP4',Q1:'Q1',Q2:'Q2',SPR:'Sprint',SPRQ:'Sprint Q.',RAC:'COURSE',WUP:'Warm Up',PR:'Practice'};
+                  const sessionIcon  = {FP1:'🔧',FP2:'🔧',FP3:'🔧',FP4:'🔧',Q1:'⏱',Q2:'⏱',SPR:'💨',SPRQ:'⏱',RAC:'🏁',WUP:'🌅',PR:'🔧'};
+                  const jours = ['Dim.','Lun.','Mar.','Mer.','Jeu.','Ven.','Sam.'];
+                  const currentCat = window._liveCat || 'MGP';
+
+                  // Boutons catégorie — clic DOM pur
+                  const catBtns = ['MGP','MT2','MT3'].map(c => {
+                    const active = c === currentCat;
+                    const col = catColors[c];
+                    return '<button id="livebtn-' + c + '" onclick="event.stopPropagation();_switchLiveCat('' + c + '')" ' +
+                      'style="padding:6px 14px;border-radius:12px;font-size:13px;cursor:pointer;font-family:Roboto,sans-serif;' +
+                      'border:1px solid ' + (active ? col : 'rgba(255,255,255,0.15)') + ';' +
+                      'background:' + (active ? col : 'transparent') + ';' +
+                      'color:' + (active ? 'white' : 'rgba(255,255,255,0.6)') + ';' +
+                      'font-weight:' + (active ? '800' : '600') + ';">' + catNames[c] + '</button>';
+                  }).join('');
+
+                  // Générer les panneaux pour les 3 catégories (show/hide via DOM)
+                  const buildPanel = cat => {
+                    const accent = catColors[cat];
+                    const sessions = broadcasts.filter(b => b.type === 'SESSION' && b.category && b.category.acronym === cat);
+                    const rows = sessions.map(b => {
+                      const d       = new Date(b.date_start);
+                      const isDone  = b.status === 'FINISHED';
+                      const isLiveB = b.is_live === true;
+                      const isRace  = b.shortname === 'RAC';
+                      const isSel   = window._liveSelSession && window._liveSelSession.id === b.id;
+                      const short   = sessionShort[b.shortname] || b.name || b.shortname;
+                      const icon    = sessionIcon[b.shortname] || '🏍️';
+                      const day     = jours[d.getDay()];
+                      const time    = d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+                      const dotColor = isLiveB ? '#ff4a4a' : isDone ? accent : 'rgba(255,255,255,0.2)';
+                      const opacity  = !isDone && !isLiveB && d < now ? '0.4' : '1';
+                      const rowBg    = isSel
+                        ? 'background:linear-gradient(90deg,' + accent + '22,' + accent + '11);border-left:3px solid ' + accent + ';'
+                        : isLiveB ? 'background:rgba(255,74,74,0.1);border-left:3px solid #ff4a4a;'
+                        : 'border-left:3px solid transparent;';
+                      const clickable = isDone || isLiveB;
+                      const onclick = clickable ? 'event.stopPropagation();_loadSessionResult('' + b.id + '','' + short + '')' : '';
+                      return '<div onclick="' + onclick + '" style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.04);opacity:' + opacity + ';' + rowBg + 'cursor:' + (clickable?'pointer':'default') + ';">' +
+                        '<div style="display:flex;align-items:center;gap:12px;">' +
+                          '<div style="width:8px;height:8px;border-radius:50%;background:' + dotColor + ';flex-shrink:0;' + (isLiveB?'box-shadow:0 0 8px #ff4a4a;animation:pulseDot 1.5s infinite;':'') + '"></div>' +
+                          '<span style="font-size:15px;color:rgba(255,255,255,0.4);width:22px;text-align:center;">' + icon + '</span>' +
+                          '<span style="font-size:16px;font-weight:' + (isRace||isLiveB?'800':'600') + ';color:' + (isRace?accent:isSel?'white':'rgba(255,255,255,0.9)') + ';">' + short + '</span>' +
+                          (isLiveB ? '<span style="background:#ff4a4a;color:white;font-size:9px;padding:2px 7px;border-radius:8px;font-weight:700;margin-left:6px;">LIVE</span>' : '') +
+                          (isDone  ? '<span style="color:#4caf50;font-size:13px;margin-left:5px;">✓</span>' : '') +
+                          (isSel   ? '<span style="color:' + accent + ';font-size:10px;margin-left:6px;font-weight:700;">▶ RÉSULTATS</span>' : '') +
+                        '</div>' +
+                        '<div style="display:flex;align-items:center;gap:14px;flex-shrink:0;">' +
+                          '<span style="font-size:12px;color:rgba(255,255,255,0.3);">' + day + '</span>' +
+                          '<span style="font-size:16px;font-weight:700;color:' + (isLiveB?'#ff4a4a':'rgba(255,255,255,0.8)') + ';">' + time + '</span>' +
+                        '</div>' +
+                      '</div>';
+                    }).join('');
+                    return '<div id="livecat-' + cat + '" style="display:' + (cat === currentCat ? 'block' : 'none') + ';">' +
+                      '<div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,0.25);padding:10px 16px 4px;">' +
+                        'Programme ' + catNames[cat] + ' · Cliquer sur une session terminée' +
+                      '</div>' +
+                      (rows || '<div style="padding:20px;color:rgba(255,255,255,0.3);font-size:14px;text-align:center;">Aucune session</div>') +
+                    '</div>';
+                  };
+
+                  const gpName = (s.state || 'Grand Prix').replace(/^\d{4}\s+/, '').replace(/^\s+|\s+$/g, '');
+                  const getFlag = (iso, h) => { if(!iso) return ''; h=h||18; const cc={'SM':'it','TW':'tw'}[iso]||iso.toLowerCase(); return '<img src="https://flagcdn.com/w40/'+cc+'.png" style="height:'+h+'px;width:auto;border-radius:2px;vertical-align:middle;" onerror="this.style.display=\'none\'">'; };
+
+                  // Dates du GP (sur MGP)
+                  const sessionsMGP = broadcasts.filter(b => b.type === 'SESSION' && b.category && b.category.acronym === 'MGP');
+                  const dates = sessionsMGP.map(b => new Date(b.date_start));
+                  const minDate = dates.length ? new Date(Math.min(...dates)) : null;
+                  const maxDate = dates.length ? new Date(Math.max(...dates)) : null;
+                  const dateRange = minDate && maxDate ? (
+                    minDate.toLocaleDateString('fr-FR', {day:'numeric', month:'long'}) +
+                    (minDate.toDateString() !== maxDate.toDateString() ? ' — ' + maxDate.toLocaleDateString('fr-FR', {day:'numeric', month:'long', year:'numeric'}) : ' ' + minDate.getFullYear())
+                  ) : '';
+
+                  return `<div style="font-family:Roboto,sans-serif;">
+                    <div style="padding:18px 18px 14px;border-bottom:1px solid rgba(255,255,255,0.08);
+                                background:linear-gradient(135deg,rgba(255,102,0,0.12) 0%,transparent 60%);">
+                      <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;">
+                        <span style="line-height:1;">${getFlag(a.country, 48)}</span>
+                        <div>
+                          <div style="font-size:18px;font-weight:800;color:white;text-transform:uppercase;">${gpName}</div>
+                          <div style="font-size:12px;color:rgba(255,255,255,0.4);margin-top:3px;">
+                            ${a.circuit_name || ''}${a.circuit_city ? ' · ' + a.circuit_city : ''} · ${dateRange}
+                          </div>
+                        </div>
+                        <div style="margin-left:auto;text-align:right;">
+                          <div style="font-size:11px;color:rgba(255,255,255,0.3);text-transform:uppercase;">Manche</div>
+                          <div style="font-size:32px;font-weight:900;color:#ff6600;line-height:1;">${a.round_num||'?'}</div>
+                          <div style="font-size:11px;color:rgba(255,255,255,0.25);">/${a.total_rounds||'?'}</div>
+                        </div>
+                      </div>
+                      <div style="display:flex;gap:8px;">${catBtns}</div>
+                    </div>
+                    ${buildPanel('MGP')}${buildPanel('MT2')}${buildPanel('MT3')}
+                  </div>
+                  <style>
+                    @keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}
+                  </style>`;
+                ]]]
+
+          # ── HAUT DROITE : Résultats session cliquée ───────────────────────────
+          - type: custom:button-card
+            show_name: false
+            show_icon: false
+            tap_action:
+              action: none
+            styles:
+              card:
+                - background: rgba(20,27,38,0.6)
+                - backdrop-filter: blur(10px)
+                - border-radius: 20px
+                - border: 1px solid rgba(255,255,255,0.1)
+                - box-shadow: 0 4px 15px rgba(0,0,0,0.3)
+                - padding: 0
+                - overflow: hidden
+              grid:
+                - grid-template-areas: '"content"'
+                - grid-template-columns: 100%
+              custom_fields:
+                content:
+                  - pointer-events: auto
+            custom_fields:
+              content: |
+                [[[
+                  // Résultats de la session sélectionnée
+                  if (!window._liveSelSession) {
+                    return `<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.4);font-family:Roboto,sans-serif;">
+                      <div style="font-size:48px;margin-bottom:16px;">👈</div>
+                      <div style="font-size:16px;font-weight:700;color:rgba(255,255,255,0.6);">Sélectionne une session</div>
+                      <div style="font-size:13px;color:rgba(255,255,255,0.3);margin-top:8px;">Clique sur une session terminée<br>dans le programme à gauche</div>
+                    </div>`;
+                  }
+
+                  const sel     = window._liveSelSession;
+                  const cached  = window._liveResCache?.[sel.id];
+                  const catColors = {MGP:'#ff6600', MT2:'#8e44ad', MT3:'#00a651'};
+                  const catEntity2 = states['input_select.motogp_live_category'];
+                  const currentCat = catEntity2 ? catEntity2.state : 'MGP';
+                  const accent = catColors[currentCat] || '#ff6600';
+
+                  if (!cached || window._liveResFetching?.[sel.id]) {
+                    return `<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.4);font-family:Roboto,sans-serif;">
+                      <div style="font-size:36px;margin-bottom:14px;">⏳</div>
+                      <div style="font-size:15px;">Chargement résultats ${sel.label}...</div>
+                    </div>`;
+                  }
+
+                  if (!cached.ok) {
+                    return `<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.4);font-family:Roboto,sans-serif;">
+                      <div style="font-size:36px;margin-bottom:14px;">⚠️</div>
+                      <div style="font-size:15px;">Résultats indisponibles</div>
+                      <div style="font-size:12px;color:rgba(255,255,255,0.3);margin-top:8px;">${sel.label}</div>
+                    </div>`;
+                  }
+
+                  const data    = cached.data;
+                  const head    = data.head || {};
+                  const riders  = data.rider || {};
+                  const isRace  = ['RAC','SPR'].includes(head.session_shortname);
+                  const isQuali = (head.session_shortname||'').startsWith('Q');
+
+                  const ridersList = Object.values(riders)
+                    .sort((a,b) => (a.order||99) - (b.order||99));
+
+                  const frenchRiders = ['ZARCO','QUARTARARO','MIR'];
+
+                  const colLabel = isRace ? 'Écart' : isQuali ? 'Meilleur temps' : 'Meilleur temps';
+
+                  const rows = ridersList.map(r => {
+                    const pos     = r.order || '—';
+                    const name    = r.rider_surname || r.rider_name || '—';
+                    const bike    = r.bike_name || '';
+                    const gap     = r.gap_first || '—';
+                    const time    = r.lap_time || r.last_lap_time || '—';
+                    const laps    = r.num_lap || '';
+                    const status  = r.status_name || '';
+                    const isFR    = frenchRiders.some(n => name.includes(n));
+                    const isLead  = pos === 1;
+                    const isDNF   = ['DNF','DNS','DSQ'].includes(status);
+                    const r_num   = parseInt(pos) || 99;
+                    const rc      = r_num===1?'#ffd700':r_num===2?'#c0c0c0':r_num===3?'#cd7f32':r_num<=10?'#4fc3f7':'rgba(255,255,255,0.5)';
+                    const rs      = isFR ? 'background:linear-gradient(90deg,rgba(0,85,164,0.2),rgba(239,65,53,0.1));' : '';
+                    const opacity = isDNF ? '0.45' : '1';
+
+                    return `<tr style="${rs}border-bottom:1px solid rgba(255,255,255,0.04);opacity:${opacity};">
+                      <td style="width:36px;padding:7px 10px;font-weight:800;color:${rc};text-align:center;font-size:15px;">${isDNF?status:pos}</td>
+                      <td style="padding:7px 5px;max-width:140px;">
+                        <div style="display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;">
+                          ${isFR?'<span style="font-size:13px;">🇫🇷</span>':''}
+                          <span style="font-weight:${isFR?'800':'600'};color:${isFR?'white':'rgba(255,255,255,0.9)'};font-size:14px;overflow:hidden;text-overflow:ellipsis;">${name}</span>
+                        </div>
+                      </td>
+                      <td style="padding:7px 4px;text-align:center;font-size:12px;color:rgba(255,255,255,0.4);">${bike}</td>
+                      <td style="padding:7px 5px;text-align:right;font-family:monospace;font-size:13px;white-space:nowrap;
+                                 color:${isLead?(isRace?'#ffd700':accent):'rgba(255,255,255,0.7)'};">
+                        ${isRace ? (isLead?'LEADER':gap) : time}
+                      </td>
+                      ${isRace?`<td style="padding:7px 10px;text-align:center;color:rgba(255,255,255,0.4);font-size:13px;">${laps}</td>`:''}
+                    </tr>`;
+                  }).join('');
+
+                  const sessionShortLabel = {FP1:'FP1',FP2:'FP2',FP3:'FP3',PR:'Practice',Q1:'Q1',Q2:'Q2',SPR:'Sprint',RAC:'Course',WUP:'Warm Up'};
+                  const sLabel = sessionShortLabel[head.session_shortname] || sel.label;
+                  const gpName = head.event_tv_name || '';
+                  const winner = ridersList[0]?.rider_surname || '';
+
+                  return `<div style="font-family:Roboto,sans-serif;">
+                    <div style="padding:16px 18px 12px;border-bottom:1px solid rgba(255,255,255,0.08);
+                                background:linear-gradient(135deg,${accent}22 0%,transparent 60%);">
+                      <div style="display:flex;align-items:center;justify-content:space-between;">
+                        <div>
+                          <div style="font-size:18px;font-weight:800;color:white;text-transform:uppercase;">${sLabel}</div>
+                          <div style="font-size:12px;color:rgba(255,255,255,0.4);margin-top:3px;">${gpName}</div>
+                        </div>
+                        ${winner?`<div style="text-align:right;">
+                          <div style="font-size:10px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:1px;">${isRace?'Vainqueur':'Pole / 1er'}</div>
+                          <div style="font-size:15px;font-weight:800;color:#ffd700;">🏆 ${winner}</div>
+                        </div>`:''}
+                      </div>
+                    </div>
+                    <table width="100%" style="border-collapse:collapse;text-align:left;color:white;font-family:Roboto,sans-serif;">
+                      <tr style="border-bottom:2px solid rgba(255,255,255,0.12);font-size:11px;text-transform:uppercase;color:rgba(255,255,255,0.35);">
+                        <th style="padding:6px 10px;width:36px;text-align:center;">#</th>
+                        <th style="padding:6px 5px;">Pilote</th>
+                        <th style="padding:6px 4px;width:36px;text-align:center;">Moto</th>
+                        <th style="padding:6px 5px;text-align:right;">${colLabel}</th>
+                        ${isRace?'<th style="padding:6px 10px;text-align:center;width:32px;">Tr.</th>':''}
+                      </tr>
+                      ${rows || '<tr><td colspan="5" style="padding:24px;text-align:center;color:rgba(255,255,255,0.3);">Aucune donnée</td></tr>'}
+                    </table>
+                  </div>`;
+                ]]]
+
+          # ── BAS GAUCHE : Circuit (vrai tracé MotoGP) ─────────────────────────
+          - type: custom:button-card
+            show_name: false
+            show_icon: false
+            tap_action:
+              action: none
+            styles:
+              card:
+                - background: rgba(20,27,38,0.6)
+                - backdrop-filter: blur(10px)
+                - border-radius: 20px
+                - border: 1px solid rgba(255,255,255,0.1)
+                - box-shadow: 0 4px 15px rgba(0,0,0,0.3)
+                - padding: 0
+                - overflow: hidden
+              grid:
+                - grid-template-areas: '"content"'
+                - grid-template-columns: 100%
+              custom_fields:
+                content:
+                  - pointer-events: auto
+            custom_fields:
+              content: |
+                [[[
+                  const s = states['sensor.motogp_next_gp'];
+                  if (!s || s.state === 'unavailable' || s.state === 'unknown') {
+                    return `<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.4);font-family:Roboto,sans-serif;">
+                      <div style="font-size:14px;">Chargement circuit...</div>
+                    </div>`;
+                  }
+                  const a = s.attributes;
+                  const svgUrl = a.circuit_svg_url || '';
+                  const pngUrl = a.circuit_png_url || '';
+                  const length = a.circuit_length ? (parseInt(a.circuit_length)/1000).toFixed(3) + ' km' : '—';
+                  const cornersL = a.circuit_corners_left || '—';
+                  const cornersR = a.circuit_corners_right || '—';
+                  const gpName = (s.state || '').replace(/^\d{4}\s+/, '').replace(/^\s+|\s+$/g, '');
+
+                  const imgUrl = pngUrl || svgUrl;
+
+                  return `<div style="font-family:Roboto,sans-serif;">
+                    <div style="padding:16px 18px 12px;border-bottom:1px solid rgba(255,255,255,0.08);">
+                      <div style="font-size:16px;font-weight:800;color:white;text-transform:uppercase;">${a.circuit_name || 'Circuit'}</div>
+                      <div style="font-size:12px;color:rgba(255,255,255,0.4);margin-top:3px;">${a.circuit_city || ''} · ${gpName}</div>
+                    </div>
+                    <div style="padding:16px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.2);min-height:220px;">
+                      ${imgUrl
+                        ? `<img src="${imgUrl}" style="max-width:100%;max-height:220px;object-fit:contain;filter:drop-shadow(0 0 12px rgba(255,102,0,0.3));" onerror="this.style.display='none'">`
+                        : '<div style="color:rgba(255,255,255,0.2);font-size:13px;">Tracé non disponible</div>'}
+                    </div>
+                    <div style="padding:12px 18px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:20px;justify-content:center;">
+                      <div style="text-align:center;">
+                        <div style="font-size:18px;font-weight:800;color:#ff6600;">${length}</div>
+                        <div style="font-size:10px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:1px;">Longueur</div>
+                      </div>
+                      <div style="width:1px;background:rgba(255,255,255,0.08);"></div>
+                      <div style="text-align:center;">
+                        <div style="font-size:18px;font-weight:800;color:#4fc3f7;">${cornersL}</div>
+                        <div style="font-size:10px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:1px;">Virages G</div>
+                      </div>
+                      <div style="width:1px;background:rgba(255,255,255,0.08);"></div>
+                      <div style="text-align:center;">
+                        <div style="font-size:18px;font-weight:800;color:#4fc3f7;">${cornersR}</div>
+                        <div style="font-size:10px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:1px;">Virages D</div>
+                      </div>
+                    </div>
+                  </div>`;
+                ]]]
+
+          # ── BAS DROITE : Timing Live ──────────────────────────────────────────
+          - type: custom:button-card
+            show_name: false
+            show_icon: false
+            tap_action:
+              action: none
+            styles:
+              card:
+                - background: rgba(20,27,38,0.6)
+                - backdrop-filter: blur(10px)
+                - border-radius: 20px
+                - border: 1px solid rgba(255,255,255,0.1)
+                - box-shadow: 0 4px 15px rgba(0,0,0,0.3)
+                - padding: 0
+                - overflow: hidden
+              grid:
+                - grid-template-areas: '"content"'
+                - grid-template-columns: 100%
+              custom_fields:
+                content:
+                  - pointer-events: auto
+            custom_fields:
+              content: |
+                [[[
+                  const liveData = states['sensor.motogp_live_timing'];
+                  const isLive = liveData && liveData.state === 'IN';
+
+                  if (!isLive || !liveData.attributes.head) {
+                    const nextGP = states['sensor.motogp_next_gp'];
+                    const a = nextGP?.attributes || {};
+                    const broadcasts = a.broadcasts || [];
+                    const now = new Date();
+                    const nextSession = broadcasts
+                      .filter(b => b.type === 'SESSION' && b.status !== 'FINISHED' && new Date(b.date_start) > now)
+                      .sort((a,b) => new Date(a.date_start) - new Date(b.date_start))[0];
+
+                    let countdownHTML = '';
+                    if (nextSession) {
+                      const ms = new Date(nextSession.date_start) - now;
+                      const dd = Math.floor(ms / 86400000);
+                      const hh = Math.floor((ms % 86400000) / 3600000);
+                      const mm = Math.floor((ms % 3600000) / 60000);
+                      const cat = nextSession.category?.name || '';
+                      const sMap = {FP1:'FP1',FP2:'FP2',PR:'Practice',Q1:'Q1',Q2:'Q2',SPR:'Sprint',RAC:'Course',WUP:'Warm Up'};
+                      const sName = sMap[nextSession.shortname] || nextSession.name || nextSession.shortname;
+                      const countdown = dd > 0 ? `${dd}j ${hh}h${String(mm).padStart(2,'0')}` : `${hh}h${String(mm).padStart(2,'0')}`;
+                      countdownHTML = `
+                        <div style="margin-top:16px;padding:14px 20px;background:rgba(79,195,247,0.08);border-radius:12px;border:1px solid rgba(79,195,247,0.2);">
+                          <div style="font-size:11px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Prochaine session</div>
+                          <div style="font-size:16px;font-weight:800;color:white;">${sName} <span style="color:rgba(255,255,255,0.5);font-weight:400;font-size:13px;">${cat}</span></div>
+                          <div style="font-size:22px;font-weight:900;color:#4fc3f7;margin-top:4px;">dans ${countdown}</div>
+                        </div>`;
+                    }
+
+                    return `<div style="font-family:Roboto,sans-serif;padding:40px 24px;text-align:center;">
+                      <div style="font-size:48px;margin-bottom:16px;">📡</div>
+                      <div style="font-size:18px;font-weight:700;color:rgba(255,255,255,0.6);">Pas de session en cours</div>
+                      <div style="font-size:13px;color:rgba(255,255,255,0.3);margin-top:8px;">Le timing live s'affichera<br>dès le début d'une session</div>
+                      ${countdownHTML}
+                    </div>`;
+                  }
+
+                  const head   = liveData.attributes.head;
+                  const riders = liveData.attributes.rider || {};
+                  const sMap   = {FP1:'FP1',FP2:'FP2',FP3:'FP3',FP4:'FP4',Q1:'Q1',Q2:'Q2',SPR:'SPRINT',SPRQ:'SPRINT Q.',RAC:'COURSE',WUP:'WARM UP',PR:'PRACTICE'};
+                  const sessionLabel = sMap[head.session_shortname] || head.session_name || 'SESSION';
+                  const isRace  = ['RAC','SPR'].includes(head.session_shortname);
+                  const isQuali = (head.session_shortname||'').startsWith('Q');
+                  const circuit = head.circuit_name || '';
+                  const gpName  = head.event_tv_name || '';
+                  const catName = head.category_name || '';
+
+                  const frenchRiders = ['QUARTARARO','ZARCO','MIR'];
+                  const ridersList = Object.values(riders)
+                    .map(r => ({
+                      rank: r.order || 99,
+                      name: r.rider_surname || r.rider_name || '—',
+                      bike: r.bike_name || '',
+                      gap:  r.gap_first || '',
+                      laps: r.num_lap || '',
+                      time: r.lap_time || '',
+                      status: r.status_name || '',
+                    }))
+                    .sort((a,b) => a.rank - b.rank);
+
+                  const leaderName  = ridersList[0]?.name || '';
+                  const totalRiders = ridersList.length;
+
+                  const timingRows = ridersList.slice(0, 20).map(r => {
+                    const isFR   = frenchRiders.some(n => r.name.includes(n));
+                    const isLead = r.rank === 1;
+                    const isDNF  = ['DNF','DNS','DSQ'].includes(r.status);
+                    const rc     = r.rank===1?'#ffd700':r.rank<=3?'#4fc3f7':'rgba(255,255,255,0.5)';
+                    const rs     = isFR ? 'background:linear-gradient(90deg,rgba(0,85,164,0.2),rgba(239,65,53,0.12));' : '';
+                    const opacity = isDNF ? '0.4' : '1';
+                    return `<tr style="${rs}border-bottom:1px solid rgba(255,255,255,0.04);opacity:${opacity};">
+                      <td style="width:32px;padding:7px 8px;font-weight:800;color:${rc};text-align:center;font-size:15px;">${isDNF?r.status:r.rank}</td>
+                      <td style="padding:7px 5px;max-width:140px;">
+                        <div style="display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;">
+                          ${isFR?'<span style="font-size:13px;">🇫🇷</span>':''}
+                          <span style="font-weight:${isFR?'800':'600'};color:${isFR?'white':'rgba(255,255,255,0.9)'};font-size:14px;overflow:hidden;text-overflow:ellipsis;">${r.name}</span>
+                        </div>
+                      </td>
+                      <td style="padding:7px 4px;text-align:center;font-size:12px;color:rgba(255,255,255,0.4);">${r.bike}</td>
+                      <td style="padding:7px 5px;text-align:right;font-family:monospace;font-size:13px;white-space:nowrap;
+                                 color:${isLead?'#ffd700':'rgba(255,255,255,0.6)'};">
+                        ${isRace ? (isLead?'LEADER':r.gap||'—') : (r.time||'—')}
+                      </td>
+                      ${isRace?`<td style="padding:7px 8px;text-align:center;color:rgba(255,255,255,0.4);font-size:13px;">${r.laps}</td>`:''}
+                    </tr>`;
+                  }).join('');
+
+                  return `<div style="font-family:Roboto,sans-serif;">
+                    <div style="padding:14px 18px;border-bottom:1px solid rgba(255,102,0,0.2);
+                                background:linear-gradient(90deg,rgba(255,102,0,0.2),rgba(255,102,0,0.05));">
+                      <div style="display:flex;align-items:center;gap:14px;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                          <div style="width:12px;height:12px;border-radius:50%;background:#ff4a4a;
+                                      box-shadow:0 0 8px #ff4a4a;animation:livePulse 1.5s infinite;"></div>
+                          <span style="font-size:11px;font-weight:800;color:#ff4a4a;text-transform:uppercase;letter-spacing:1.5px;">EN DIRECT</span>
+                        </div>
+                        <span style="font-size:20px;font-weight:900;color:white;text-transform:uppercase;">${sessionLabel}</span>
+                        <span style="font-size:13px;color:rgba(255,255,255,0.5);">${catName}</span>
+                      </div>
+                      <div style="font-size:11px;color:rgba(255,255,255,0.3);margin-top:4px;">${gpName}${circuit?' · '+circuit:''}</div>
+                    </div>
+                    <table width="100%" style="border-collapse:collapse;text-align:left;color:white;font-family:Roboto,sans-serif;">
+                      <tr style="border-bottom:2px solid rgba(255,255,255,0.12);font-size:11px;text-transform:uppercase;color:rgba(255,255,255,0.35);">
+                        <th style="padding:6px 8px;width:32px;text-align:center;">#</th>
+                        <th style="padding:6px 5px;">Pilote</th>
+                        <th style="padding:6px 4px;width:34px;text-align:center;">Moto</th>
+                        <th style="padding:6px 5px;text-align:right;">${isRace?'Écart':isQuali?'Temps':'Meilleur'}</th>
+                        ${isRace?'<th style="padding:6px 8px;text-align:center;width:30px;">Tr.</th>':''}
+                      </tr>
+                      ${timingRows||'<tr><td colspan="5" style="padding:28px;text-align:center;color:rgba(255,255,255,0.3);font-size:14px;">Données en attente...</td></tr>'}
+                    </table>
+                    <div style="padding:8px 18px;border-top:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;">
+                      <span style="font-size:10px;color:rgba(255,255,255,0.25);text-transform:uppercase;">${circuit} · ${totalRiders} pilotes</span>
+                      <span style="font-size:10px;color:rgba(255,255,255,0.25);">🥇 ${leaderName}</span>
+                    </div>
+                  </div>
+                  <style>
+                    @keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.85)}}
+                  </style>`;
+                ]]]
+
+  # VUE 3 — Catégories : MotoGP / Historique / Moto2 / Moto3
+  # ============================================================
+  - title: Catégories
+    path: motogp-categories
+    icon: mdi:podium
+    panel: true
+    badges: []
+    cards:
+      - type: custom:layout-card
+        layout_type: custom:grid-layout
+        layout:
+          grid-template-columns: 1fr 1fr
+          grid-gap: 12px
+          margin: 0
+          padding: 12px
+        cards:
+
+          - type: custom:button-card
+            show_name: false
+            show_icon: false
+            tap_action:
+              action: none
+            styles:
+              card:
+                - background: rgba(20,27,38,0.6)
+                - backdrop-filter: blur(10px)
+                - border-radius: 20px
+                - border: 1px solid rgba(255,255,255,0.1)
+                - padding: 0
+                - overflow: hidden
+              grid:
+                - grid-template-areas: '"content"'
+                - grid-template-columns: 100%
+              custom_fields:
+                content:
+                  - pointer-events: auto
+            custom_fields:
+              content: |
+                [[[
+                  const s=states['sensor.motogp_rider_standings'];
+                  if(!s||!s.attributes.classification) return `<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.4);font-family:Roboto,sans-serif;"><div style="font-size:36px;">🏆</div><div style="font-size:15px;margin-top:10px;">Chargement MotoGP...</div></div>`;
+                  const entries=s.attributes.classification||[];
+                  const cC={Ducati:'#cc0000',Honda:'#e40521',Yamaha:'#003087',KTM:'#ff6b00',Aprilia:'#002060'};
+                  const gC=n=>{for(const[k,c] of Object.entries(cC)) if(n&&n.includes(k)) return c; return '#4fc3f7';};
+                  const isFR=e=>e.rider?.country?.iso==='FR'; const frTop=entries.filter(e=>isFR(e));
+                  const rR=(entry)=>{
+                    const rank=entry.position||'—';const pts=entry.points??'—';const wins=entry.race_wins??0;
+                    const name=entry.rider?.full_name||'—';const short=name.split(' ').pop().toUpperCase();
+                    const fr=isFR(entry);const r=parseInt(rank)||99;
+                    const rc=r===1?'#ffd700':r===2?'#c0c0c0':r===3?'#cd7f32':r<=10?'#4fc3f7':'#a9b1d6';
+                    const color=gC(entry.constructor?.name||'');
+                    const rs=fr?'background:linear-gradient(90deg,rgba(0,85,164,0.15),rgba(239,65,53,0.1));':'';
+                    const ns=fr?'font-weight:900;color:#fff;':'font-weight:600;color:rgba(255,255,255,0.9);';
+                    return `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);${rs}"><td style="width:40px;padding:8px 12px;font-weight:800;color:${rc};border-left:3px solid ${rc};font-size:16px;">${rank}</td><td style="padding:8px 6px;max-width:160px;"><div style="display:flex;align-items:center;gap:6px;">${fr?'<span style="font-size:14px;">🇫🇷</span>':''}<span style="${ns}font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:120px;">${short}</span></div></td><td style="padding:8px 6px;text-align:center;"><div style="width:12px;height:12px;border-radius:50%;background:${color};display:inline-block;"></div></td><td style="padding:8px 6px;text-align:center;color:rgba(255,255,255,0.5);font-size:14px;">${wins>0?wins:''}</td><td style="padding:8px 14px;text-align:right;font-weight:800;color:white;font-size:16px;">${pts}</td></tr>`;
+                  };
+                  const top10=entries.slice(0,10);const rest=entries.slice(10);
+                  let exp='';if(rest.length)exp=`<details onpointerdown="event.stopPropagation()" ontouchstart="event.stopPropagation()" onclick="event.stopPropagation()" style="outline:none;"><summary style="cursor:pointer;text-align:center;display:block;color:rgba(255,255,255,0.6);padding:8px 12px;font-size:13px;font-weight:700;background:rgba(255,255,255,0.03);border-top:1px solid rgba(255,255,255,0.1);outline:none;">▼ TOUT LE CLASSEMENT ▼</summary><table width="100%" style="border-collapse:collapse;color:white;font-family:Roboto,sans-serif;">${rest.map(e=>rR(e)).join('')}</table></details>`;
+                  return `<div style="font-family:Roboto,sans-serif;"><div style="padding:16px 20px 14px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;"><div style="display:flex;align-items:center;gap:14px;"><div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#ff6600,#cc3300);display:flex;align-items:center;justify-content:center;font-size:22px;">🏆</div><div><div style="font-size:18px;font-weight:800;color:white;text-transform:uppercase;">MotoGP · Pilotes</div><div style="font-size:12px;color:rgba(255,255,255,0.4);">Championnat 2026</div></div></div>${frTop.length?`<div style="font-size:13px;color:#4fc3f7;">🇫🇷 ${frTop.map(e=>'P'+e.position).join(' · ')}</div>`:''}</div><table width="100%" style="border-collapse:collapse;text-align:left;color:white;font-family:Roboto,sans-serif;"><tr style="border-bottom:2px solid rgba(255,255,255,0.12);font-size:12px;text-transform:uppercase;color:rgba(255,255,255,0.35);"><th style="padding:7px 12px;width:40px;">#</th><th style="padding:7px 6px;">Pilote</th><th style="padding:7px 6px;text-align:center;width:30px;">🏍</th><th style="padding:7px 6px;text-align:center;width:30px;">V</th><th style="padding:7px 14px;text-align:right;width:48px;">Pts</th></tr>${top10.map(e=>rR(e)).join('')}</table>${exp}</div>`;
+                ]]]
+
+          - type: custom:button-card
+            show_name: false
+            show_icon: false
+            tap_action:
+              action: none
+            styles:
+              card:
+                - background: rgba(20,27,38,0.6)
+                - backdrop-filter: blur(10px)
+                - border-radius: 20px
+                - border: 1px solid rgba(255,255,255,0.1)
+                - padding: 0
+                - overflow: hidden
+              grid:
+                - grid-template-areas: '"content"'
+                - grid-template-columns: 100%
+              custom_fields:
+                content:
+                  - pointer-events: auto
+            custom_fields:
+              content: |
+                [[[
+                  const yearEntity=states['input_select.motogp_history_season'];
+                  const catEntity=states['input_select.motogp_history_category'];
+                  if(!yearEntity||!catEntity) return `<div style="padding:24px;text-align:center;color:rgba(255,255,255,0.4);font-family:Roboto,sans-serif;"><div style="font-size:28px;">⚙️</div><div style="font-size:14px;margin-top:8px;">Helpers manquants</div></div>`;
+                  if(!window._motoHass) window._motoHass=hass; window._motoHass=hass;
+                  if(!window._motoHistCache) window._motoHistCache={};
+                  const year=yearEntity.state; const cat=catEntity.state; const cacheKey=`${year}_${cat}`;
+                  const sensorMap={
+                    '2026':{MotoGP:'sensor.motogp_rider_standings',Moto2:'sensor.moto2_rider_standings',Moto3:'sensor.moto3_rider_standings'},
+                    '2025':{MotoGP:'sensor.motogp_standings_2025',Moto2:'sensor.moto2_standings_2025',Moto3:'sensor.moto3_standings_2025'},
+                    '2024':{MotoGP:'sensor.motogp_standings_2024',Moto2:'sensor.moto2_standings_2024',Moto3:'sensor.moto3_standings_2024'},
+                    '2023':{MotoGP:'sensor.motogp_standings_2023',Moto2:'sensor.moto2_standings_2023',Moto3:'sensor.moto3_standings_2023'},
+                    '2022':{MotoGP:'sensor.motogp_standings_2022',Moto2:'sensor.moto2_standings_2022',Moto3:'sensor.moto3_standings_2022'},
+                    '2021':{MotoGP:'sensor.motogp_standings_2021',Moto2:'sensor.moto2_standings_2021',Moto3:'sensor.moto3_standings_2021'},
+                    '2020':{MotoGP:'sensor.motogp_standings_2020',Moto2:'sensor.moto2_standings_2020',Moto3:'sensor.moto3_standings_2020'},
+                    '2019':{MotoGP:'sensor.motogp_standings_2019',Moto2:'sensor.moto2_standings_2019',Moto3:'sensor.moto3_standings_2019'},
+                  };
+                  window._motoHistSelectYear=y=>window._motoHass.callService('input_select','select_option',{entity_id:'input_select.motogp_history_season',option:y});
+                  window._motoHistSelectCat=c=>window._motoHass.callService('input_select','select_option',{entity_id:'input_select.motogp_history_category',option:c});
+                  window._motoHistRefresh=key=>{delete window._motoHistCache[key];window._motoHass.callService('input_text','set_value',{entity_id:'input_text.motogp_history_ts',value:String(Date.now())});};
+                  if(sensorMap[year]){
+                    const s=states[sensorMap[year][cat]];
+                    if(s&&s.attributes.classification){window._motoHistCache[cacheKey]={ok:true,data:{classification:s.attributes.classification}};}
+                    else if(s&&(s.state==='unavailable'||s.state==='unknown')){window._motoHistCache[cacheKey]={ok:false};}
+                  }
+                  if(!sensorMap[year]&&!window._motoHistCache[cacheKey]){window._motoHistCache[cacheKey]={ok:false,noSensor:true};}
+                  const categories=['MotoGP','Moto2','Moto3']; const years=Object.keys(sensorMap).sort((a,b)=>b-a);
+                  const catAccent={MotoGP:'#ff6600',Moto2:'#8e44ad',Moto3:'#00a651'}; const accent=catAccent[cat]||'#ff6600';
+                  const accentRgb=accent==='#ff6600'?'255,102,0':accent==='#8e44ad'?'142,68,173':'0,166,81';
+                  const yearBtns=years.map(y=>`<button onclick="event.stopPropagation();_motoHistSelectYear('${y}')" style="padding:6px 13px;border-radius:12px;border:1px solid ${y===year?accent:'rgba(255,255,255,0.15)'};background:${y===year?accent:'transparent'};color:${y===year?'white':'rgba(255,255,255,0.6)'};font-size:13px;font-weight:${y===year?'800':'600'};cursor:pointer;font-family:Roboto,sans-serif;">${y}</button>`).join('');
+                  const catBtns=categories.map(c=>`<button onclick="event.stopPropagation();_motoHistSelectCat('${c}')" style="padding:6px 15px;border-radius:12px;border:1px solid ${c===cat?catAccent[c]:'rgba(255,255,255,0.15)'};background:${c===cat?catAccent[c]:'transparent'};color:${c===cat?'white':'rgba(255,255,255,0.6)'};font-size:13px;font-weight:${c===cat?'800':'600'};cursor:pointer;font-family:Roboto,sans-serif;">${c}</button>`).join('');
+                  const header=`<div style="padding:18px 20px 14px;border-bottom:1px solid rgba(255,255,255,0.08);background:linear-gradient(135deg,rgba(${accentRgb},0.15) 0%,transparent 60%);">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+                      <div style="display:flex;align-items:center;gap:14px;"><div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,${accent},${accent}aa);display:flex;align-items:center;justify-content:center;font-size:22px;">📅</div><div><div style="font-size:18px;font-weight:800;color:white;text-transform:uppercase;">Historique</div><div style="font-size:12px;color:rgba(255,255,255,0.4);">${cat} · Saison ${year}</div></div></div>
+                      <button onclick="event.stopPropagation();_motoHistRefresh('${cacheKey}')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:rgba(255,255,255,0.6);font-size:14px;padding:6px 14px;cursor:pointer;font-family:Roboto,sans-serif;">↻</button>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-bottom:10px;">${catBtns}</div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">${yearBtns}</div>
+                  </div>`;
+                  const cached=window._motoHistCache[cacheKey];
+                  if(!cached) return `<div style="font-family:Roboto,sans-serif;">${header}<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.4);"><div style="font-size:34px;margin-bottom:14px;">⏳</div><div style="font-size:14px;">Chargement ${cat} ${year}...</div></div></div>`;
+                  if(!cached.ok) return `<div style="font-family:Roboto,sans-serif;">${header}<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.4);"><div style="font-size:34px;margin-bottom:14px;">${cached.noSensor?'🏛️':'⚠️'}</div><div style="font-size:15px;font-weight:700;color:white;margin-bottom:8px;">${cat} ${year}</div><div style="font-size:13px;color:rgba(255,255,255,0.4);line-height:1.6;">${cached.noSensor?'Non disponible.<br><span style="color:#4fc3f7;">Sélectionne 2019–2026.</span>':'Données indisponibles.<br>Clique ↻ pour réessayer.'}</div></div></div>`;
+                  const entries=cached.data.classification||[];
+                  if(!entries.length) return `<div style="font-family:Roboto,sans-serif;">${header}<div style="padding:24px;text-align:center;color:rgba(255,255,255,0.3);font-size:14px;">Aucune donnée pour ${cat} ${year}</div></div>`;
+                  const isFR=e=>e.rider?.country?.iso==='FR'; const leaderPts=entries[0]?.points||1;
+                  const renderRow=entry=>{
+                    const rank=entry.position||'—';const pts=entry.points??'—';const wins=entry.race_wins??0;
+                    const name=entry.rider?.full_name||'—';const short=name.split(' ').pop().toUpperCase();
+                    const team=entry.team?.name||'';const fr=isFR(entry);const r=parseInt(rank)||99;
+                    const rc=r===1?'#ffd700':r===2?'#c0c0c0':r===3?'#cd7f32':r<=10?'#4fc3f7':'#a9b1d6';
+                    const rs=fr?'background:linear-gradient(90deg,rgba(0,85,164,0.15),rgba(239,65,53,0.1));':'';
+                    const ns=fr?'font-weight:900;color:#fff;':'font-weight:600;color:rgba(255,255,255,0.9);';
+                    const barW=Math.round((parseFloat(pts)||0)/leaderPts*100);
+                    return `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);${rs}"><td style="width:40px;padding:7px 12px;font-weight:800;color:${rc};border-left:3px solid ${rc};font-size:15px;">${rank}</td><td style="padding:7px 6px;max-width:170px;"><div style="display:flex;align-items:center;gap:6px;">${fr?'<span style="font-size:14px;">🇫🇷</span>':''}<span style="${ns}font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:130px;">${short}</span></div><div style="width:${barW}%;height:2px;background:${accent};border-radius:1px;margin-top:2px;opacity:0.5;"></div></td><td style="padding:7px 6px;font-size:12px;color:rgba(255,255,255,0.35);max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${team}</td><td style="padding:7px 6px;text-align:center;color:rgba(255,255,255,0.5);font-size:14px;">${wins>0?wins+'V':''}</td><td style="padding:7px 14px;text-align:right;font-weight:800;color:white;font-size:15px;">${pts}</td></tr>`;
+                  };
+                  const top10=entries.slice(0,10);const rest=entries.slice(10);
+                  const leader=entries[0];const lName=leader?.rider?.full_name?.split(' ').pop()||'';const lPts=leader?.points??'';const lWins=leader?.race_wins??0;
+                  let exp='';if(rest.length)exp=`<details onpointerdown="event.stopPropagation()" ontouchstart="event.stopPropagation()" onclick="event.stopPropagation()" style="outline:none;"><summary style="cursor:pointer;text-align:center;display:block;color:rgba(255,255,255,0.6);padding:8px 12px;font-size:13px;font-weight:700;background:rgba(255,255,255,0.03);border-top:1px solid rgba(255,255,255,0.1);outline:none;">▼ VOIR TOUT LE CLASSEMENT (${entries.length} pilotes) ▼</summary><table width="100%" style="border-collapse:collapse;color:white;font-family:Roboto,sans-serif;">${rest.map(e=>renderRow(e)).join('')}</table></details>`;
+                  return `<div style="font-family:Roboto,sans-serif;">${header}
+                    <div style="padding:12px 20px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;gap:16px;align-items:center;background:linear-gradient(90deg,rgba(255,215,0,0.08),transparent);">
+                      <div style="font-size:26px;">🏆</div>
+                      <div><div style="font-size:17px;font-weight:800;color:#ffd700;">${lName.toUpperCase()}</div><div style="font-size:12px;color:rgba(255,255,255,0.4);">${year==='2026'?'Leader':'Champion'} ${cat} ${year} · ${lPts} pts${lWins>0?' · '+lWins+' victoires':''}</div></div>
+                    </div>
+                    <table width="100%" style="border-collapse:collapse;text-align:left;color:white;font-family:Roboto,sans-serif;">
+                      <tr style="border-bottom:2px solid rgba(255,255,255,0.15);font-size:12px;text-transform:uppercase;color:rgba(255,255,255,0.4);">
+                        <th style="padding:7px 12px;width:40px;">#</th><th style="padding:7px 6px;">Pilote</th>
+                        <th style="padding:7px 6px;">Équipe</th><th style="padding:7px 6px;text-align:center;width:32px;">V</th>
+                        <th style="padding:7px 14px;text-align:right;width:52px;">Pts</th>
+                      </tr>
+                      ${top10.map(e=>renderRow(e)).join('')}
+                    </table>
+                    ${exp}
+                    <div style="padding:7px 20px;border-top:1px solid rgba(255,255,255,0.06);font-size:11px;color:rgba(255,255,255,0.2);text-align:right;text-transform:uppercase;">API Officielle MotoGP · ${cat} ${year}</div>
+                  </div>`;
+                ]]]
+
+          - type: custom:button-card
+            show_name: false
+            show_icon: false
+            tap_action:
+              action: none
+            styles:
+              card:
+                - background: rgba(20,27,38,0.6)
+                - backdrop-filter: blur(10px)
+                - border-radius: 20px
+                - border: 1px solid rgba(255,255,255,0.1)
+                - padding: 0
+                - overflow: hidden
+              grid:
+                - grid-template-areas: '"content"'
+                - grid-template-columns: 100%
+              custom_fields:
+                content:
+                  - pointer-events: auto
+            custom_fields:
+              content: |
+                [[[
+                  const s=states['sensor.moto2_rider_standings'];
+                  if(!s||!s.attributes.classification) return `<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.4);font-family:Roboto,sans-serif;"><div style="font-size:36px;">🏆</div><div style="font-size:15px;margin-top:10px;">Chargement Moto2...</div></div>`;
+                  const entries=s.attributes.classification||[];
+                  const cC={Kalex:'#e74c3c',Boscoscuro:'#8e44ad',Forward:'#2980b9'};
+                  const gC=n=>{for(const[k,c] of Object.entries(cC)) if(n&&n.includes(k)) return c; return '#4fc3f7';};
+                  const isFR=e=>e.rider?.country?.iso==='FR';const frTop=entries.filter(e=>isFR(e));
+                  const rR=(entry)=>{
+                    const rank=entry.position||'—';const pts=entry.points??'—';const wins=entry.race_wins??0;
+                    const name=entry.rider?.full_name||'—';const short=name.split(' ').pop().toUpperCase();
+                    const fr=isFR(entry);const r=parseInt(rank)||99;
+                    const rc=r===1?'#ffd700':r===2?'#c0c0c0':r===3?'#cd7f32':r<=10?'#4fc3f7':'#a9b1d6';
+                    const color=gC(entry.constructor?.name||'');
+                    const rs=fr?'background:linear-gradient(90deg,rgba(0,85,164,0.15),rgba(239,65,53,0.1));':'';
+                    const ns=fr?'font-weight:900;color:#fff;':'font-weight:600;color:rgba(255,255,255,0.9);';
+                    return `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);${rs}"><td style="width:40px;padding:8px 12px;font-weight:800;color:${rc};border-left:3px solid ${rc};font-size:16px;">${rank}</td><td style="padding:8px 6px;max-width:160px;"><div style="display:flex;align-items:center;gap:6px;">${fr?'<span style="font-size:14px;">🇫🇷</span>':''}<span style="${ns}font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:120px;">${short}</span></div></td><td style="padding:8px 6px;text-align:center;"><div style="width:12px;height:12px;border-radius:50%;background:${color};display:inline-block;"></div></td><td style="padding:8px 6px;text-align:center;color:rgba(255,255,255,0.5);font-size:14px;">${wins>0?wins:''}</td><td style="padding:8px 14px;text-align:right;font-weight:800;color:white;font-size:16px;">${pts}</td></tr>`;
+                  };
+                  const top10=entries.slice(0,10);const rest=entries.slice(10);
+                  let exp='';if(rest.length)exp=`<details onpointerdown="event.stopPropagation()" ontouchstart="event.stopPropagation()" onclick="event.stopPropagation()" style="outline:none;"><summary style="cursor:pointer;text-align:center;display:block;color:rgba(255,255,255,0.6);padding:8px 12px;font-size:13px;font-weight:700;background:rgba(255,255,255,0.03);border-top:1px solid rgba(255,255,255,0.1);outline:none;">▼ TOUT LE CLASSEMENT ▼</summary><table width="100%" style="border-collapse:collapse;color:white;font-family:Roboto,sans-serif;">${rest.map(e=>rR(e)).join('')}</table></details>`;
+                  return `<div style="font-family:Roboto,sans-serif;"><div style="padding:16px 20px 14px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;"><div style="display:flex;align-items:center;gap:14px;"><div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#8e44ad,#6c3483);display:flex;align-items:center;justify-content:center;font-size:22px;">🏆</div><div><div style="font-size:18px;font-weight:800;color:white;text-transform:uppercase;">Moto2 · Pilotes</div><div style="font-size:12px;color:rgba(255,255,255,0.4);">Championnat 2026</div></div></div>${frTop.length?`<div style="font-size:13px;color:#4fc3f7;">🇫🇷 ${frTop.map(e=>'P'+e.position).join(' · ')}</div>`:''}</div><table width="100%" style="border-collapse:collapse;text-align:left;color:white;font-family:Roboto,sans-serif;"><tr style="border-bottom:2px solid rgba(255,255,255,0.12);font-size:12px;text-transform:uppercase;color:rgba(255,255,255,0.35);"><th style="padding:7px 12px;width:40px;">#</th><th style="padding:7px 6px;">Pilote</th><th style="padding:7px 6px;text-align:center;width:30px;">🏍</th><th style="padding:7px 6px;text-align:center;width:30px;">V</th><th style="padding:7px 14px;text-align:right;width:48px;">Pts</th></tr>${top10.map(e=>rR(e)).join('')}</table>${exp}</div>`;
+                ]]]
+
+          - type: custom:button-card
+            show_name: false
+            show_icon: false
+            tap_action:
+              action: none
+            styles:
+              card:
+                - background: rgba(20,27,38,0.6)
+                - backdrop-filter: blur(10px)
+                - border-radius: 20px
+                - border: 1px solid rgba(255,255,255,0.1)
+                - padding: 0
+                - overflow: hidden
+              grid:
+                - grid-template-areas: '"content"'
+                - grid-template-columns: 100%
+              custom_fields:
+                content:
+                  - pointer-events: auto
+            custom_fields:
+              content: |
+                [[[
+                  const s=states['sensor.moto3_rider_standings'];
+                  if(!s||!s.attributes.classification) return `<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.4);font-family:Roboto,sans-serif;"><div style="font-size:36px;">🏆</div><div style="font-size:15px;margin-top:10px;">Chargement Moto3...</div></div>`;
+                  const entries=s.attributes.classification||[];
+                  const cC={Honda:'#cc0000',KTM:'#ff6b00',CFMOTO:'#00a651',Husqvarna:'#ff6b00',GasGas:'#ff6b00'};
+                  const gC=n=>{for(const[k,c] of Object.entries(cC)) if(n&&n.includes(k)) return c; return '#4fc3f7';};
+                  const isFR=e=>e.rider?.country?.iso==='FR';const frTop=entries.filter(e=>isFR(e));
+                  const rR=(entry)=>{
+                    const rank=entry.position||'—';const pts=entry.points??'—';const wins=entry.race_wins??0;
+                    const name=entry.rider?.full_name||'—';const short=name.split(' ').pop().toUpperCase();
+                    const fr=isFR(entry);const r=parseInt(rank)||99;
+                    const rc=r===1?'#ffd700':r===2?'#c0c0c0':r===3?'#cd7f32':r<=10?'#4fc3f7':'#a9b1d6';
+                    const color=gC(entry.constructor?.name||'');
+                    const rs=fr?'background:linear-gradient(90deg,rgba(0,85,164,0.15),rgba(239,65,53,0.1));':'';
+                    const ns=fr?'font-weight:900;color:#fff;':'font-weight:600;color:rgba(255,255,255,0.9);';
+                    return `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);${rs}"><td style="width:40px;padding:8px 12px;font-weight:800;color:${rc};border-left:3px solid ${rc};font-size:16px;">${rank}</td><td style="padding:8px 6px;max-width:160px;"><div style="display:flex;align-items:center;gap:6px;">${fr?'<span style="font-size:14px;">🇫🇷</span>':''}<span style="${ns}font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:120px;">${short}</span></div></td><td style="padding:8px 6px;text-align:center;"><div style="width:12px;height:12px;border-radius:50%;background:${color};display:inline-block;"></div></td><td style="padding:8px 6px;text-align:center;color:rgba(255,255,255,0.5);font-size:14px;">${wins>0?wins:''}</td><td style="padding:8px 14px;text-align:right;font-weight:800;color:white;font-size:16px;">${pts}</td></tr>`;
+                  };
+                  const top10=entries.slice(0,10);const rest=entries.slice(10);
+                  let exp='';if(rest.length)exp=`<details onpointerdown="event.stopPropagation()" ontouchstart="event.stopPropagation()" onclick="event.stopPropagation()" style="outline:none;"><summary style="cursor:pointer;text-align:center;display:block;color:rgba(255,255,255,0.6);padding:8px 12px;font-size:13px;font-weight:700;background:rgba(255,255,255,0.03);border-top:1px solid rgba(255,255,255,0.1);outline:none;">▼ TOUT LE CLASSEMENT ▼</summary><table width="100%" style="border-collapse:collapse;color:white;font-family:Roboto,sans-serif;">${rest.map(e=>rR(e)).join('')}</table></details>`;
+                  return `<div style="font-family:Roboto,sans-serif;"><div style="padding:16px 20px 14px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;"><div style="display:flex;align-items:center;gap:14px;"><div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#00a651,#007a3d);display:flex;align-items:center;justify-content:center;font-size:22px;">🏆</div><div><div style="font-size:18px;font-weight:800;color:white;text-transform:uppercase;">Moto3 · Pilotes</div><div style="font-size:12px;color:rgba(255,255,255,0.4);">Championnat 2026</div></div></div>${frTop.length?`<div style="font-size:13px;color:#4fc3f7;">🇫🇷 ${frTop.map(e=>'P'+e.position).join(' · ')}</div>`:''}</div><table width="100%" style="border-collapse:collapse;text-align:left;color:white;font-family:Roboto,sans-serif;"><tr style="border-bottom:2px solid rgba(255,255,255,0.12);font-size:12px;text-transform:uppercase;color:rgba(255,255,255,0.35);"><th style="padding:7px 12px;width:40px;">#</th><th style="padding:7px 6px;">Pilote</th><th style="padding:7px 6px;text-align:center;width:30px;">🏍</th><th style="padding:7px 6px;text-align:center;width:30px;">V</th><th style="padding:7px 14px;text-align:right;width:48px;">Pts</th></tr>${top10.map(e=>rR(e)).join('')}</table>${exp}</div>`;
+                ]]]

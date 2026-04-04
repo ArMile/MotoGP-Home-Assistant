@@ -16,6 +16,7 @@ input_select:
   motogp_history_season:
     name: "MotoGP - Saison historique"
     options:
+      - "2026"
       - "2025"
       - "2024"
       - "2023"
@@ -23,7 +24,7 @@ input_select:
       - "2021"
       - "2020"
       - "2019"
-    initial: "2024"
+    initial: "2026"
     icon: mdi:calendar-search
 
   motogp_history_category:
